@@ -14,6 +14,31 @@ In this harness, a good claim has:
 
 ---
 
+## Evidence ratio rule
+
+Evidence is **not** the same as context.
+
+For one claim, evidence should normally be:
+
+```text
+1 exact source sentence, or
+2 short adjacent sentences if necessary,
+not a whole paragraph/chunk.
+```
+
+Target size:
+
+```text
+ideal:       100–400 characters
+acceptable: 400–800 characters when genuinely needed
+suspicious: >800 characters for one atomic claim
+bad:        entire paragraphs with multiple unrelated claims
+```
+
+If the writer/model needs more surrounding material, use the context view. Do not stuff context into the evidence field.
+
+---
+
 ## The claim test
 
 Before marking something as a claim, ask:

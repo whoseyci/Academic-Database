@@ -400,6 +400,63 @@ def infer_claim_type(text: str) -> str:
     return "background"
 
 
+def strip_annotation_noise(text: str) -> str:
+    """Remove parser/Obsidian annotation noise while preserving the scientific quote."""
+    t = str(text or "")
+    t = t.replace("==", "")
+    t = re.sub(r"\[PAGE UNVERIFIED\]", " ", t, flags=re.I)
+    # Remove bracketed curator notes, but not markdown links with parentheses immediately after.
+    t = re.sub(r"\[(?![^\]]+\]\()[^\]]{8,220}\]", " ", t)
+    # Remove hashtag metadata such as #MA/RQ2.
+    t = re.sub(r"#[A-Za-z0-9_./§-]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def evidence_sentences(text: str) -> list[str]:
+    text = strip_annotation_noise(text)
+    parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9_\"“])", text)
+    return [p.strip() for p in parts if len(p.strip()) >= 25]
+
+
+def refine_evidence_quote(evidence: str, claim: str = "", max_chars: int = 700) -> str:
+    """Keep evidence tight: normally one sentence or a short two-sentence quote.
+
+    Evidence is not context. Context is expanded separately by `context` / the static export.
+    """
+    evidence = str(evidence or "").strip()
+    if not evidence:
+        return evidence
+    cleaned = strip_annotation_noise(evidence)
+    if len(cleaned) <= max_chars and "==" not in evidence and "[PAGE" not in evidence and "#MA/" not in evidence:
+        return cleaned
+    sents = evidence_sentences(evidence)
+    if not sents:
+        return short(cleaned, max_chars)
+    qwords = set(w for w in re.findall(r"\w+", norm(claim)) if len(w) > 3)
+    scored=[]
+    for i,sent in enumerate(sents):
+        words=set(w for w in re.findall(r"\w+", norm(sent)) if len(w) > 3)
+        score=len(qwords & words) / max(1, len(qwords))
+        # Prefer sentences with numbers/effect language when the claim is empirical.
+        if re.search(r"\b\d+\s*%|significant|increase|decrease|positive|negative|models?\b", sent, re.I):
+            score += 0.15
+        scored.append((score,i,sent))
+    scored.sort(reverse=True)
+    best_i=scored[0][1]
+    chosen=[sents[best_i]]
+    # Add a neighbouring sentence only if the first is too cryptic and total remains bounded.
+    for j in [best_i+1, best_i-1]:
+        if 0 <= j < len(sents) and len(" ".join(chosen+[sents[j]])) <= max_chars:
+            # Only include if it shares at least one meaningful claim word.
+            words=set(w for w in re.findall(r"\w+", norm(sents[j])) if len(w) > 3)
+            if qwords & words:
+                chosen.append(sents[j])
+                break
+    out=" ".join(chosen)
+    return short(out, max_chars)
+
+
 def tags_for_claim(claim_id: str) -> list[str]:
     conn=db(); rows=conn.execute("SELECT tag_type, tag FROM claim_tags WHERE claim_id=?", (claim_id,)).fetchall(); conn.close()
     return [f"{r['tag_type']}:{r['tag']}" for r in rows]
@@ -604,7 +661,9 @@ def cmd_import_v1(args):
             loc=locate_span(text, c.get("evidence", ""))
         if not loc.get("found") or loc.get("char_start") is None:
             continue
-        evidence=text[int(loc["char_start"]):int(loc["char_end"])].strip()
+        # Preserve the curated evidence quote from V1. Do not replace it with a whole fallback chunk.
+        raw_evidence = c.get("evidence") or text[int(loc["char_start"]):int(loc["char_end"])].strip()
+        evidence = refine_evidence_quote(raw_evidence, c.get("claim", ""), max_chars=700)
         page=c.get("page") or page_for_char(sid, loc.get("char_start"))[0]
         rep=c.get("claim_representation") or ("source_quote" if norm(c.get("claim")) == norm(evidence) else "paraphrase")
         claim={"claim_id": c.get("claim_id") or next_claim_id(sid), "source_id": sid, "claim": c.get("claim") or evidence,
@@ -683,6 +742,57 @@ def render_chapter_brief_md(packet: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def update_claim_evidence(cur: sqlite3.Cursor, claim_id: str, evidence: str) -> None:
+    row = cur.execute("SELECT claim, scope_note FROM claims WHERE claim_id=?", (claim_id,)).fetchone()
+    if not row:
+        return
+    tags = " ".join(f"{r['tag_type']}:{r['tag']}" for r in cur.execute("SELECT tag_type, tag FROM claim_tags WHERE claim_id=?", (claim_id,)).fetchall())
+    cur.execute("UPDATE claims SET evidence=?, updated_at=? WHERE claim_id=?", (evidence, now(), claim_id))
+    cur.execute("DELETE FROM claims_fts WHERE claim_id=?", (claim_id,))
+    cur.execute("INSERT INTO claims_fts(claim_id, claim, evidence, tags) VALUES (?,?,?,?)", (claim_id, row["claim"], evidence, tags))
+
+
+def cmd_repair_evidence(args):
+    """Repair overlong legacy evidence quotes.
+
+    Main use-case: V1 fallback anchors sometimes pointed to a whole chunk; early V2 import then
+    copied that chunk as evidence. This command restores tight evidence quotes from the V1 ledger
+    and/or trims noisy annotated evidence to 1-2 supporting sentences.
+    """
+    init_db(True)
+    legacy = {}
+    if args.from_v1:
+        ledger = Path(args.from_v1) / "claim_ledger.jsonl"
+        if not ledger.exists():
+            raise SystemExit(f"No V1 claim_ledger.jsonl found at {ledger}")
+        for line in ledger.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                c=json.loads(line)
+                if c.get("claim_id"):
+                    legacy[c["claim_id"]] = c
+    conn=db(); cur=conn.cursor(); rows=cur.execute("SELECT claim_id, claim, evidence FROM claims ORDER BY claim_id").fetchall()
+    changes=[]
+    for r in rows:
+        cid=r["claim_id"]; old_ev=r["evidence"] or ""; claim=r["claim"] or ""
+        source_ev = old_ev
+        if cid in legacy and legacy[cid].get("evidence"):
+            # Prefer curated V1 evidence whenever current evidence is noisy/longer.
+            candidate = refine_evidence_quote(legacy[cid].get("evidence", ""), claim, args.max_chars)
+            if len(old_ev) > args.max_chars or "[PAGE" in old_ev or "#MA/" in old_ev or "==" in old_ev or len(candidate) < len(old_ev):
+                source_ev = candidate
+        else:
+            source_ev = refine_evidence_quote(old_ev, claim, args.max_chars)
+        if source_ev.strip() != old_ev.strip():
+            changes.append({"claim_id": cid, "old_len": len(old_ev), "new_len": len(source_ev), "old_preview": short(old_ev, 120), "new_preview": short(source_ev, 160)})
+            if not args.dry_run:
+                update_claim_evidence(cur, cid, source_ev)
+    if not args.dry_run:
+        conn.commit()
+    conn.close()
+    payload={"dry_run": args.dry_run, "changed": len(changes), "changes": changes[:args.limit]}
+    print_json(payload) if args.json else print(f"Evidence repair {'dry-run ' if args.dry_run else ''}changed {len(changes)} claims")
+
+
 def cmd_stats(args):
     conn=db(); cur=conn.cursor()
     tables=["sources","spans","claims","claim_tags","claim_relations","review_events"]
@@ -717,6 +827,7 @@ def main():
     ctx=sub.add_parser("context"); ctx.add_argument("claim_id"); ctx.add_argument("--window", type=int, default=500); ctx.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); ctx.add_argument("--json", action="store_true"); ctx.set_defaults(func=cmd_context)
     chap=sub.add_parser("chapter-brief"); chap.add_argument("profile"); chap.add_argument("--limit", type=int, default=10); chap.add_argument("--json", action="store_true"); chap.set_defaults(func=cmd_chapter_brief)
     rev=sub.add_parser("review"); rev.add_argument("claim_id"); rev.add_argument("status", choices=sorted(STATUSES)); rev.add_argument("--note"); rev.add_argument("--actor"); rev.set_defaults(func=cmd_review)
+    rep=sub.add_parser("repair-evidence", help="Repair overlong/noisy evidence quotes, optionally using a V1 ledger as source of curated quotes"); rep.add_argument("--from-v1"); rep.add_argument("--max-chars", type=int, default=700); rep.add_argument("--dry-run", action="store_true"); rep.add_argument("--json", action="store_true"); rep.add_argument("--limit", type=int, default=30); rep.set_defaults(func=cmd_repair_evidence)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 
