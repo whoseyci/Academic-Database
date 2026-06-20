@@ -1,0 +1,23 @@
+# Python/cache
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local databases and runtime files
+*.db-wal
+*.db-shm
+
+# Full source blobs are not pushed by default to avoid publishing copyrighted paper text.
+blobs/*.gz
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets
+.env
+*.token

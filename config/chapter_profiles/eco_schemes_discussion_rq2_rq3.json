@@ -1,0 +1,60 @@
+{
+  "chapter_id": "eco_schemes_discussion_rq2_rq3",
+  "chapter_title": "Discussion evidence brief for eco-scheme participation drivers and design improvements",
+  "purpose": "Provide an LLM or human writer with source-backed claims for discussing behavioural determinants of participation and design modifications for CAP eco-schemes. This profile is thesis-specific, but illustrates the generic chapter-brief mechanism.",
+  "minimum_source_diversity": 1,
+  "global_filters": {
+    "source_ids": ["Canessa_2024"],
+    "statuses": ["verified", "candidate_needs_review", "needs_page_check"]
+  },
+  "writing_contract": [
+    "Use only claims in this brief unless you explicitly retrieve more evidence.",
+    "Every substantive sentence in the drafted chapter should map to at least one claim_id.",
+    "Candidate or page-check claims are not publication-safe until reviewed; flag them for audit.",
+    "Call `python rh2.py context CLAIM_ID --window 600` before using a claim as a central argument.",
+    "Do not generalize beyond the source scope: European AECM evidence is not automatically Andalusian olive-grove evidence.",
+    "Preserve uncertainties, limitations, and design trade-offs, especially additionality/self-selection and undermeasured contract/social variables."
+  ],
+  "sections": [
+    {
+      "section_id": "behavioural_drivers",
+      "heading": "Behavioural and institutional drivers of participation",
+      "writing_goal": "Explain why participation is not only financial: attitudes, trust, experience, information and social context matter.",
+      "queries": [
+        "trust policy stability social norms previous participation information pro-environmental attitudes adoption AECM farmers"
+      ],
+      "claim_types": ["empirical finding", "theoretical claim"],
+      "limit": 8
+    },
+    {
+      "section_id": "contract_design",
+      "heading": "Contract design, flexibility and transaction costs",
+      "writing_goal": "Discuss how payment design, bureaucratic simplification, implementation ease and flexibility shape participation incentives.",
+      "queries": [
+        "contract design flexibility bureaucratic simplification transaction costs payment compensation opportunity costs participation"
+      ],
+      "claim_types": ["empirical finding", "policy implication", "theoretical claim"],
+      "limit": 8
+    },
+    {
+      "section_id": "additionality_tradeoff",
+      "heading": "Participation versus additionality trade-offs",
+      "writing_goal": "Show why high participation alone is insufficient if schemes mostly attract baseline-compliant farmers.",
+      "queries": [
+        "additionality self-selection baseline complying farmers alignment participation effectiveness action based AECM"
+      ],
+      "claim_types": ["empirical finding", "theoretical claim", "policy implication"],
+      "limit": 6
+    },
+    {
+      "section_id": "research_gaps",
+      "heading": "Evidence gaps and methodological implications",
+      "writing_goal": "Identify variables that are undermeasured and justify why the thesis survey focus is valuable.",
+      "queries": [
+        "undermeasured social context contract design engagement transaction cost standardized behavioural indicators research gaps"
+      ],
+      "claim_types": ["limitation", "methodological claim", "policy implication", "theoretical claim"],
+      "limit": 6
+    }
+  ]
+}
