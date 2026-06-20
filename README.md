@@ -30,6 +30,8 @@ The UI reads:
 docs/data/harness_export.json
 ```
 
+The main writing use-case is the **Topic Explorer** tab: enter a topic/chapter idea such as `trust policy stability`, `contract flexibility`, or `semi-natural habitats`, and the page returns related claim cards, evidence excerpts, source/status/topic observations, and a copyable evidence packet. This is client-side lexical retrieval over the exported claim ledger, not an LLM and not full semantic embedding search yet.
+
 To enable it on GitHub if it is not already active:
 
 1. Open the repository on GitHub.
