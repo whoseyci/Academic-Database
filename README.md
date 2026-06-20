@@ -16,6 +16,36 @@ canonical source text once as compressed blob
 + chapter evidence briefs
 ```
 
+## GitHub Pages UI
+
+The repo includes a static GitHub Pages interface in:
+
+```text
+docs/index.html
+```
+
+The UI reads:
+
+```text
+docs/data/harness_export.json
+```
+
+To enable it on GitHub if it is not already active:
+
+1. Open the repository on GitHub.
+2. Go to **Settings → Pages**.
+3. Under **Build and deployment**, choose **Deploy from a branch**.
+4. Choose branch `main` and folder `/docs`.
+5. Save.
+
+The expected URL is:
+
+```text
+https://whoseyci.github.io/Academic-Database/
+```
+
+Note: full source papers are intentionally ignored via `.gitignore` (`blobs/*.gz`) to avoid publishing copyrighted source text. The GitHub Pages export includes metadata, claim/evidence excerpts, tags, network data and bounded context snippets.
+
 ## Key commands
 
 Initialize:
