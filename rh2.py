@@ -98,6 +98,28 @@ def print_json(obj: Any) -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=2))
 
 
+def parse_char_range(value: str) -> tuple[int, int]:
+    m = re.match(r"^\s*(\d+)\s*[:-]\s*(\d+)\s*$", str(value or ""))
+    if not m:
+        raise SystemExit("Range must look like START:END or START-END")
+    start, end = int(m.group(1)), int(m.group(2))
+    if end <= start:
+        raise SystemExit("Range end must be greater than start")
+    return start, end
+
+
+def source_range_handle(source_id: str, start: int, end: int) -> str:
+    return f"SOURCE_RANGE[{source_id}:{int(start)}-{int(end)}]"
+
+
+def claim_handle(claim_id: str) -> str:
+    return f"CLAIM[{claim_id}]"
+
+
+def citation_context_handle(context_id: str) -> str:
+    return f"CITATION_CONTEXT[{context_id}]"
+
+
 def line_offsets(text: str) -> list[int]:
     offsets=[]; pos=0
     for line in text.splitlines(True):
@@ -829,16 +851,114 @@ def cmd_context(args):
 
 def cmd_source_text(args):
     text=read_source_text(args.source_id)
-    if args.max_chars and len(text) > args.max_chars:
+    range_start=0; range_end=len(text); range_handle=None
+    if getattr(args, "range", None):
+        range_start, range_end = parse_char_range(args.range)
+        range_start=max(0, range_start); range_end=min(len(text), range_end)
+        range_handle=source_range_handle(args.source_id, range_start, range_end)
+        out=text[range_start:range_end]
+        truncated=False
+    elif args.max_chars and len(text) > args.max_chars:
         out=text[:args.max_chars]
+        range_end=len(out)
         truncated=True
     else:
         out=text; truncated=False
-    payload={"source_id": args.source_id, "char_count": len(text), "returned_chars": len(out), "truncated": truncated, "text": out}
+    payload={"source_id": args.source_id, "char_count": len(text), "range_start": range_start, "range_end": range_end, "range_handle": range_handle or source_range_handle(args.source_id, range_start, range_end), "returned_chars": len(out), "truncated": truncated, "text": out}
     if args.json:
         print_json(payload)
     else:
         print(out)
+
+
+def cmd_resolve_handle(args):
+    h=str(args.handle).strip()
+    m=re.match(r"^SOURCE_RANGE\[([^:\]]+):(\d+)-(\d+)\]$", h)
+    if m:
+        source_id=m.group(1); start=int(m.group(2)); end=int(m.group(3)); text=read_source_text(source_id); out=text[max(0,start):min(len(text),end)]
+        payload={"handle":h,"kind":"source_range","source_id":source_id,"char_start":start,"char_end":end,"text":out}
+        print_json(payload) if args.json else print(out)
+        return
+    m=re.match(r"^CLAIM\[([^\]]+)\]$", h)
+    if m:
+        cid=m.group(1); conn=db(); row=conn.execute("SELECT * FROM claims WHERE claim_id=?", (cid,)).fetchone(); conn.close()
+        if not row: raise SystemExit(f"Unknown claim handle: {cid}")
+        d=dict(row); ctx=sentence_aware_context(d["source_id"], int(d["char_start"] or 0), int(d["char_end"] or d["char_start"] or 0), radius=args.sentence_radius, outside_paragraph=args.outside_paragraph)
+        payload={"handle":h,"kind":"claim","claim":claim_card(d,"standard"),"source_range":source_range_handle(d["source_id"], d["char_start"], d["char_end"]), **ctx}
+        print_json(payload) if args.json else print(f"{cid}\n\n{payload['claim']['claim']}\n\n--- context ---\n{payload['context']}")
+        return
+    m=re.match(r"^CITATION_CONTEXT\[([^\]]+)\]$", h)
+    if m:
+        context_id=m.group(1); conn=db(); row=conn.execute("SELECT * FROM citation_contexts WHERE context_id=?", (context_id,)).fetchone(); conn.close()
+        if not row: raise SystemExit(f"Unknown citation context handle: {context_id}")
+        r=dict(row); payload={"handle":h,"kind":"citation_context","context":r,"source_range":source_range_handle(r["citing_source_id"], r["char_start"], r["char_end"])}
+        print_json(payload) if args.json else print(f"{context_id} | {r['citing_source_id']} cites {r['cited_author_key']} {r['cited_year']}\n\n{r['context_text']}")
+        return
+    m=re.match(r"^PAPER\[([^\]]+)\]$", h)
+    if m:
+        source_id=m.group(1); cmd_source_text(argparse.Namespace(source_id=source_id, range=None, max_chars=args.max_chars, json=args.json)); return
+    raise SystemExit("Unknown handle. Supported: SOURCE_RANGE[source:start-end], CLAIM[id], CITATION_CONTEXT[id], PAPER[source_id]")
+
+
+
+
+def section_map_for_source(source_id: str, max_claims_per_section: int = 5) -> dict[str, Any]:
+    text=read_source_text(source_id)
+    conn=db(); src=conn.execute("SELECT * FROM sources WHERE source_id=?", (source_id,)).fetchone()
+    claims=[dict(r) for r in conn.execute("SELECT * FROM claims WHERE source_id=? AND verification_status!='rejected' ORDER BY char_start, claim_id", (source_id,)).fetchall()]
+    cites=[dict(r) for r in conn.execute("SELECT * FROM citation_contexts WHERE citing_source_id=? ORDER BY char_start", (source_id,)).fetchall()]
+    conn.close()
+    sections=heading_spans(text)
+    if not sections:
+        sections=[{"heading":"full_text","char_start":0,"char_end":len(text)}]
+    out_sections=[]
+    for sec in sections:
+        start,end=sec["char_start"],sec["char_end"]
+        sec_claims=[c for c in claims if c.get("char_start") is not None and start <= int(c["char_start"]) < end]
+        sec_cites=[c for c in cites if c.get("char_start") is not None and start <= int(c["char_start"]) < end]
+        page_start,_=page_for_char(source_id,start)
+        page_end,_=page_for_char(source_id,max(start,end-1))
+        claim_cards=[claim_card(c,"minimal") for c in sec_claims[:max_claims_per_section]]
+        out_sections.append({
+            "heading": sec["heading"],
+            "handle": source_range_handle(source_id,start,end),
+            "char_start": start,
+            "char_end": end,
+            "page_start": page_start,
+            "page_end": page_end,
+            "estimated_tokens": estimate_tokens(text[start:end]),
+            "claim_count": len(sec_claims),
+            "claims_preview": claim_cards,
+            "citation_context_count": len(sec_cites),
+            "citation_context_handles_preview": [citation_context_handle(c["context_id"]) for c in sec_cites[:max_claims_per_section]],
+        })
+    return {"source": dict(src) if src else {"source_id":source_id}, "source_handle": f"PAPER[{source_id}]", "char_count": len(text), "section_count": len(out_sections), "claim_count": len(claims), "citation_context_count": len(cites), "sections": out_sections}
+
+
+def render_source_map_md(m: dict[str, Any]) -> str:
+    src=m.get("source",{})
+    lines=[f"# Source Map: {src.get('source_id')}", "", f"Title: {src.get('title','')}", f"Authors/year: {src.get('authors','')} ({src.get('year','')})", f"Source handle: `{m.get('source_handle')}`", f"Characters: {m.get('char_count')} | Sections: {m.get('section_count')} | Claims: {m.get('claim_count')} | Citation contexts: {m.get('citation_context_count')}", "", "## Sections", ""]
+    for sec in m.get("sections",[]):
+        page = f"p.{sec.get('page_start') or '?'}" if sec.get('page_start')==sec.get('page_end') else f"p.{sec.get('page_start') or '?'}–{sec.get('page_end') or '?'}"
+        lines.append(f"### {sec.get('heading')}")
+        lines.append(f"- Range: `{sec.get('handle')}` | {page} | ~{sec.get('estimated_tokens')} tokens")
+        lines.append(f"- Claims: {sec.get('claim_count')} | Citation contexts: {sec.get('citation_context_count')}")
+        if sec.get("claims_preview"):
+            lines.append("- Claim preview:")
+            for c in sec["claims_preview"]:
+                lines.append(f"  - `{claim_handle(c['claim_id'])}` {c.get('claim')}")
+        if sec.get("citation_context_handles_preview"):
+            lines.append("- Citation context handles: " + ", ".join(f"`{h}`" for h in sec["citation_context_handles_preview"]))
+        lines.append("")
+    return "\n".join(lines)
+
+
+def cmd_source_map(args):
+    m=section_map_for_source(args.source_id, args.max_claims_per_section)
+    if args.json:
+        print_json(m)
+    else:
+        print(render_source_map_md(m))
 
 
 def cmd_import_v1(args):
@@ -1612,6 +1732,56 @@ def cmd_extract_citations(args):
     print_json(payload) if args.json else print(f"Extracted {len(refs)} references and {len(ctxs)} citation contexts for {args.source_id} ({payload['matched_contexts']} matched local sources).")
 
 
+def build_citation_summary(source_id: str | None = None, limit: int = 20) -> dict[str, Any]:
+    init_db(True)
+    conn=db(); cur=conn.cursor()
+    where="WHERE citing_source_id=?" if source_id else ""
+    params=[source_id] if source_id else []
+    rows=[dict(r) for r in cur.execute("SELECT * FROM citation_contexts " + where + " ORDER BY citing_source_id, context_id", params).fetchall()]
+    refs=[dict(r) for r in cur.execute("SELECT * FROM source_references " + ("WHERE source_id=?" if source_id else ""), params).fetchall()]
+    conn.close()
+    status_counts={}; function_counts={}; missing={}; matched={}
+    for r in rows:
+        status_counts[r["verification_status"]]=status_counts.get(r["verification_status"],0)+1
+        function_counts[r["citation_function"]]=function_counts.get(r["citation_function"],0)+1
+        key=f"{r.get('cited_author_key')} {r.get('cited_year')}"
+        if r.get("matched_source_id"):
+            matched[r["matched_source_id"]]=matched.get(r["matched_source_id"],0)+1
+        else:
+            missing[key]=missing.get(key,0)+1
+    top_missing=sorted(missing.items(), key=lambda x:x[1], reverse=True)[:limit]
+    priority=[]
+    for r in rows:
+        if len(priority) >= limit: break
+        if r.get("verification_status") in ["missing_source","needs_source","needs_verification"] or r.get("citation_function") in ["supporting_evidence","contradiction_or_qualification","method_or_framework"]:
+            priority.append({"handle": citation_context_handle(r["context_id"]), "context_id": r["context_id"], "citing_source_id": r["citing_source_id"], "cited": f"{r.get('cited_author_key')} {r.get('cited_year')}", "matched_source_id": r.get("matched_source_id"), "function": r.get("citation_function"), "status": r.get("verification_status"), "context_preview": short(r.get("context_text"), 260)})
+    return {"source_id": source_id, "reference_count": len(refs), "citation_context_count": len(rows), "status_counts": status_counts, "function_counts": function_counts, "matched_source_counts": matched, "top_missing_cited_sources": [{"cited":k,"count":v} for k,v in top_missing], "priority_contexts": priority}
+
+
+def render_citation_summary_md(summary: dict[str, Any]) -> str:
+    lines=[f"# Citation Summary: {summary.get('source_id') or 'all sources'}", "", f"References: {summary.get('reference_count')} | Citation contexts: {summary.get('citation_context_count')}", "", "## Status counts", ""]
+    for k,v in sorted(summary.get("status_counts",{}).items()): lines.append(f"- {k}: {v}")
+    lines += ["", "## Citation function counts", ""]
+    for k,v in sorted(summary.get("function_counts",{}).items()): lines.append(f"- {k}: {v}")
+    if summary.get("top_missing_cited_sources"):
+        lines += ["", "## Top missing cited sources", ""]
+        for x in summary["top_missing_cited_sources"]: lines.append(f"- {x['cited']}: {x['count']} context(s)")
+    if summary.get("priority_contexts"):
+        lines += ["", "## Priority contexts", ""]
+        for c in summary["priority_contexts"]:
+            lines.append(f"- `{c['handle']}` {c['citing_source_id']} -> {c['cited']} ({c.get('matched_source_id') or 'MISSING'}) | {c['function']} | {c['status']}")
+            lines.append(f"  - {c['context_preview']}")
+    return "\n".join(lines)
+
+
+def cmd_citation_summary(args):
+    summary=build_citation_summary(args.source_id,args.limit)
+    if args.json:
+        print_json(summary)
+    else:
+        print(render_citation_summary_md(summary))
+
+
 def cmd_citation_report(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
@@ -1757,8 +1927,12 @@ def main():
     mark=sub.add_parser("mark-claim"); mark.add_argument("quote", nargs="?"); mark.add_argument("--text"); mark.add_argument("--source-id"); mark.add_argument("--claim-id"); mark.add_argument("--claim"); mark.add_argument("--claim-representation", choices=["source_quote","lightly_normalized_source","paraphrase","source_range"]); mark.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); mark.add_argument("--constructs"); mark.add_argument("--rq-tags"); mark.add_argument("--discipline"); mark.add_argument("--geography"); mark.add_argument("--methodology"); mark.add_argument("--scope-note"); mark.add_argument("--confidence", choices=["low","medium","high"], default="high"); mark.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); mark.add_argument("--allow-duplicate", action="store_true"); mark.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); mark.add_argument("--json", action="store_true"); mark.set_defaults(func=cmd_mark_claim)
     ret=sub.add_parser("retrieve"); ret.add_argument("query"); ret.add_argument("--limit", type=int, default=8); ret.add_argument("--source-id"); ret.add_argument("--verified-only", action="store_true"); ret.add_argument("--status"); ret.add_argument("--claim-type"); ret.add_argument("--fields", choices=["minimal","standard","full"], default="minimal"); ret.add_argument("--json", action="store_true"); ret.set_defaults(func=cmd_retrieve)
     ctx=sub.add_parser("context"); ctx.add_argument("claim_id"); ctx.add_argument("--mode", choices=["sentence","char","full"], default="sentence"); ctx.add_argument("--sentence-radius", type=int, default=1, help="Sentence radius around the claim sentence within the claim paragraph"); ctx.add_argument("--outside-paragraph", action="store_true", help="Allow sentence expansion into neighbouring paragraphs"); ctx.add_argument("--window", type=int, default=500, help="Character window for --mode char only"); ctx.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); ctx.add_argument("--json", action="store_true"); ctx.set_defaults(func=cmd_context)
-    stxt=sub.add_parser("source-text", help="Read an entire source text, or a truncated prefix")
-    stxt.add_argument("source_id"); stxt.add_argument("--max-chars", type=int, default=0); stxt.add_argument("--json", action="store_true"); stxt.set_defaults(func=cmd_source_text)
+    stxt=sub.add_parser("source-text", help="Read an entire source text, a truncated prefix, or an exact char range")
+    stxt.add_argument("source_id"); stxt.add_argument("--range", help="Character range START:END or START-END"); stxt.add_argument("--max-chars", type=int, default=0); stxt.add_argument("--json", action="store_true"); stxt.set_defaults(func=cmd_source_text)
+    smap=sub.add_parser("source-map", help="Compressed map of source sections with retrieval handles, claim counts, citation counts")
+    smap.add_argument("source_id"); smap.add_argument("--max-claims-per-section", type=int, default=5); smap.add_argument("--json", action="store_true"); smap.set_defaults(func=cmd_source_map)
+    rh=sub.add_parser("resolve-handle", help="Resolve SOURCE_RANGE[], CLAIM[], CITATION_CONTEXT[], or PAPER[] handles")
+    rh.add_argument("handle"); rh.add_argument("--sentence-radius", type=int, default=1); rh.add_argument("--outside-paragraph", action="store_true"); rh.add_argument("--max-chars", type=int, default=0); rh.add_argument("--json", action="store_true"); rh.set_defaults(func=cmd_resolve_handle)
     mspan=sub.add_parser("mark-span", help="Create a pure source-range claim from source_id and char_start/char_end")
     mspan.add_argument("source_id"); mspan.add_argument("char_start", type=int); mspan.add_argument("char_end", type=int); mspan.add_argument("--claim-id"); mspan.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); mspan.add_argument("--constructs"); mspan.add_argument("--rq-tags"); mspan.add_argument("--discipline"); mspan.add_argument("--geography"); mspan.add_argument("--methodology"); mspan.add_argument("--scope-note"); mspan.add_argument("--confidence", choices=["low","medium","high"], default="high"); mspan.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); mspan.add_argument("--allow-duplicate", action="store_true"); mspan.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); mspan.add_argument("--json", action="store_true"); mspan.set_defaults(func=cmd_mark_span)
     esr=sub.add_parser("extract-source-ranges", help="Heuristically extract exact source-range claim candidates; no LLM rewriting")
@@ -1775,6 +1949,8 @@ def main():
     rev=sub.add_parser("review"); rev.add_argument("claim_id"); rev.add_argument("status", choices=sorted(STATUSES)); rev.add_argument("--note"); rev.add_argument("--actor"); rev.set_defaults(func=cmd_review)
     ec=sub.add_parser("extract-citations", help="Extract reference-list entries and in-text citation contexts for backtracking")
     ec.add_argument("source_id"); ec.add_argument("--clear", action="store_true"); ec.add_argument("--json", action="store_true"); ec.set_defaults(func=cmd_extract_citations)
+    csum=sub.add_parser("citation-summary", help="Compressed citation/backtracking summary with handles")
+    csum.add_argument("--source-id"); csum.add_argument("--limit", type=int, default=20); csum.add_argument("--json", action="store_true"); csum.set_defaults(func=cmd_citation_summary)
     cr=sub.add_parser("citation-report", help="Summarize extracted citation contexts")
     cr.add_argument("--source-id"); cr.add_argument("--status"); cr.add_argument("--limit", type=int, default=30); cr.add_argument("--json", action="store_true"); cr.set_defaults(func=cmd_citation_report)
     cc=sub.add_parser("citation-context", help="Show one citation context and suggested claims from the cited source if available")

@@ -118,10 +118,31 @@ Build a chapter evidence brief:
 python rh2.py chapter-brief eco_schemes_discussion_rq2_rq3
 ```
 
+Compact source map with retrieval handles:
+
+```bash
+python rh2.py source-map CuadrosCasanova_2022 --max-claims-per-section 2
+```
+
+Retrieve exact source text by range:
+
+```bash
+python rh2.py source-text CuadrosCasanova_2022 --range 32175:32475
+```
+
+Resolve handles emitted by source maps, citation summaries and briefs:
+
+```bash
+python rh2.py resolve-handle 'SOURCE_RANGE[CuadrosCasanova_2022:32175-32475]'
+python rh2.py resolve-handle 'CLAIM[CLM-CuadrosCasanova_2022-0031]'
+python rh2.py resolve-handle 'CITATION_CONTEXT[CITCTX-CuadrosCasanova_2022-00003]'
+```
+
 Extract citation contexts for reference-web/backtracking:
 
 ```bash
 python rh2.py extract-citations Canessa_2024 --clear
+python rh2.py citation-summary --source-id Canessa_2024 --limit 20
 python rh2.py citation-report --source-id Canessa_2024 --limit 20
 python rh2.py citation-context CITCTX-Canessa_2024-00001 --limit 5
 ```
