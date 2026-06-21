@@ -65,6 +65,12 @@ def db() -> sqlite3.Connection:
     return conn
 
 
+def ensure_column(cur: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
+    cols = {r[1] for r in cur.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def norm(s: Any) -> str:
     return re.sub(r"\s+", " ", str(s or "").strip().lower())
 
@@ -202,11 +208,13 @@ def init_db(quiet: bool=False) -> None:
     CREATE TABLE IF NOT EXISTS source_references (
         reference_id TEXT PRIMARY KEY,
         source_id TEXT NOT NULL,
+        reference_anchor TEXT,
         raw_text TEXT,
         author_key TEXT,
         year TEXT,
         title TEXT,
         doi TEXT,
+        canonical_source_id TEXT,
         matched_source_id TEXT,
         status TEXT,
         created_at TEXT,
@@ -216,6 +224,8 @@ def init_db(quiet: bool=False) -> None:
         context_id TEXT PRIMARY KEY,
         citing_source_id TEXT NOT NULL,
         reference_id TEXT,
+        reference_anchor TEXT,
+        canonical_source_id TEXT,
         cited_author_key TEXT,
         cited_year TEXT,
         citation_text TEXT,
@@ -265,6 +275,11 @@ def init_db(quiet: bool=False) -> None:
     CREATE INDEX IF NOT EXISTS idx_citctx_match ON citation_contexts(matched_source_id);
     CREATE INDEX IF NOT EXISTS idx_citctx_status ON citation_contexts(verification_status);
     """)
+    # Lightweight migrations for existing V2 databases.
+    ensure_column(cur, "source_references", "reference_anchor", "TEXT")
+    ensure_column(cur, "source_references", "canonical_source_id", "TEXT")
+    ensure_column(cur, "citation_contexts", "reference_anchor", "TEXT")
+    ensure_column(cur, "citation_contexts", "canonical_source_id", "TEXT")
     conn.commit(); conn.close()
     if not quiet:
         print(f"Initialized V2 DB: {DB_PATH}")
@@ -702,8 +717,9 @@ def cmd_init(args):
 
 def cmd_ingest(args):
     meta={k:getattr(args,k) for k in ["title","authors","year","doi","source_type","disciplines","geography","methodology","theory","quality","notes"]}
-    ingest_source(Path(args.path), args.source_id or slug(args.title or Path(args.path).stem), meta)
-    print(f"Ingested {args.source_id or slug(args.title or Path(args.path).stem)}")
+    sid = args.source_id or (canonical_source_id_from_doi(args.doi) if args.doi else slug(args.title or Path(args.path).stem))
+    ingest_source(Path(args.path), sid, meta)
+    print(f"Ingested {sid}")
 
 
 def cmd_mark_claim(args):
@@ -1506,54 +1522,164 @@ def cmd_writing_brief(args):
 # ---------- citation / reference backtracking V0 ----------
 
 def normalize_key(s: str) -> str:
-    s = str(s or "").lower()
-    # lightweight accent stripping without extra dependency
+    s = str(s or "").replace("ø", "o").replace("Ø", "O").lower()
     import unicodedata
     s = "".join(ch for ch in unicodedata.normalize("NFKD", s) if not unicodedata.combining(ch))
+    s = s.replace("’", "'")
     s = re.sub(r"\bet\s+al\.?", "", s)
-    s = re.sub(r"\b(and|&|see|cf|e\.g|eg|also|in|by)\b", " ", s)
+    s = re.sub(r"\b(see|cf|e\.g|eg|also|in|by)\b", " ", s)
     s = re.sub(r"[^a-z0-9]+", " ", s).strip()
     return s
 
 
-def first_author_key_from_text(s: str) -> str:
-    s = str(s or "").strip()
-    s = re.sub(r"^[\[({\s]+", "", s)
-    s = re.sub(r"\bet\s+al\.?", "", s, flags=re.I)
-    # In APA refs the first surname usually appears before comma.
+def compact_key(s: str) -> str:
+    return re.sub(r"\s+", "_", normalize_key(s)).strip("_")
+
+
+def normalize_doi(doi: str | None) -> str:
+    if not doi:
+        return ""
+    d=str(doi).strip()
+    d=re.sub(r"^https?://(dx\.)?doi\.org/", "", d, flags=re.I)
+    d=re.sub(r"^doi:\s*", "", d, flags=re.I)
+    d=d.strip().rstrip(".,);]")
+    return d.lower()
+
+
+def extract_doi_from_text(raw: str) -> str:
+    """Extract DOI robustly from reference text with common PDF line-break/OCR spaces."""
+    if not raw:
+        return ""
+    t=str(raw)
+    # Repair common broken DOI spacing: "10.1016/j. biocon..." and "10.1186/ s...".
+    t=re.sub(r"(10\.\d{4,9}/)\s+", r"\1", t, flags=re.I)
+    t=re.sub(r"(10\.1016/j\.)\s+", r"\1", t, flags=re.I)
+    t=re.sub(r"(10\.\d{4,9}/[A-Za-z0-9_.-]*\.)\s+(?=[A-Za-z0-9_.-]*\d)", r"\1", t, flags=re.I)
+    # Prefer explicit DOI URL or DOI-looking token.
+    m=re.search(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", t, flags=re.I)
+    if not m:
+        return ""
+    doi=normalize_doi(m.group(0))
+    # Reject obvious partials such as 10.1016/j created by line breaks.
+    if len(doi) < 12 or re.fullmatch(r"10\.\d{4,9}/j", doi):
+        return ""
+    return doi
+
+
+def canonical_source_id_from_doi(doi: str | None) -> str:
+    d=normalize_doi(doi)
+    if not d:
+        return ""
+    return "doi_" + re.sub(r"[^a-z0-9]+", "_", d.lower()).strip("_")
+
+
+def first_content_word(title: str) -> str:
+    stop={"the","a","an","of","on","in","for","to","and","or","with","from","by","at","into","toward","towards"}
+    for w in re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ0-9]+", str(title or "")):
+        k=compact_key(w)
+        if k and k not in stop and not k.isdigit():
+            return k
+    return "untitled"
+
+
+def deterministic_source_id(author_key: str, year: str, title: str, doi: str = "") -> str:
+    doi_id=canonical_source_id_from_doi(doi)
+    if doi_id:
+        return doi_id
+    year_part=re.match(r"(19|20)\d{2}[a-z]?", str(year or ""))
+    year_part=year_part.group(0).lower() if year_part else "nd"
+    author=compact_key(author_key) or "unknown"
+    word=first_content_word(title)
+    return f"ref_{author}_{word}_{year_part}"
+
+
+def year_token_from_text(s: str) -> str:
+    m=re.search(r"\b((?:19|20)\d{2}[a-z]?)\b", str(s or ""), flags=re.I)
+    return m.group(1).lower() if m else ""
+
+
+def year_base(year: str) -> str:
+    m=re.match(r"((?:19|20)\d{2})", str(year or ""))
+    return m.group(1) if m else str(year or "")[:4]
+
+
+def author_key_from_author_part(author_part: str) -> str:
+    """Stable key for first author / organization.
+
+    Personal refs: "Emmerson, M." -> emmerson.
+    Institutional refs/citations: "European Commission" -> european_commission.
+    "Pe'er et al." -> pe_er.
+    "Official Journal of the European Union" -> official_journal_of_the_european_union.
+    """
+    s=str(author_part or "").strip()
+    s=re.sub(r"<a\s+id=['\"][^'\"]+['\"]\s*>\s*</a>", " ", s, flags=re.I)
+    s=re.sub(r"^[\[({\s-]+", "", s)
+    s=re.sub(r"\bet\s+al\.?", "", s, flags=re.I)
+    s=re.sub(r"\b((?:19|20)\d{2}[a-z]?)\b.*", "", s, flags=re.I).strip(" ,.;()")
+    # Split multi-citation connectors but preserve organization names containing 'of'.
+    if ";" in s:
+        s=s.split(";",1)[0]
+    # Personal author references usually have surname comma initials.
     if "," in s:
-        s = s.split(",", 1)[0]
-    else:
-        # In in-text citations, keep the last capitalized-looking token sequence before year.
-        s = re.sub(r"\b(19|20)\d{2}[a-z]?\b.*", "", s).strip()
-        # Remove connector tails.
-        s = re.split(r"\band\b|&|;", s, flags=re.I)[-1].strip() or s
-    words = re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ'’.-]+", s)
-    return normalize_key(words[-1] if words else s)
+        first=s.split(",",1)[0].strip()
+        # If first segment looks like an organization phrase, keep it; otherwise use surname.
+        if len(first.split()) <= 3:
+            s=first
+    # Remove trailing connectors from in-text fragments.
+    s=re.split(r"\s+(?:and|&)\s+", s, flags=re.I)[0].strip() if not re.search(r"\b(of|for|on)\b", s, flags=re.I) else s
+    return compact_key(s)
+
+
+def first_author_key_from_text(s: str) -> str:
+    return author_key_from_author_part(s)
 
 
 def source_author_keys(authors: str) -> set[str]:
     keys=set()
-    for part in re.split(r"[;|,]", str(authors or "")):
-        k=first_author_key_from_text(part)
+    # semicolon-separated author metadata in our registry is safest; comma splitting is only fallback.
+    parts = re.split(r"[;|]", str(authors or "")) if (";" in str(authors or "") or "|" in str(authors or "")) else [str(authors or "")]
+    for part in parts:
+        k=author_key_from_author_part(part)
         if k:
             keys.add(k)
     return keys
 
 
-def match_local_source(author_key: str, year: str, excluding_source_id: str | None = None) -> str | None:
-    if not author_key or not year:
-        return None
+def source_canonical_id(row: sqlite3.Row | dict[str, Any]) -> str:
+    d=dict(row)
+    doi_id=canonical_source_id_from_doi(d.get("doi"))
+    if doi_id:
+        return doi_id
+    return deterministic_source_id(author_key_from_author_part(d.get("authors","")), str(d.get("year") or ""), d.get("title", ""))
+
+
+def match_local_source(author_key: str, year: str, excluding_source_id: str | None = None, doi: str | None = None, canonical_source_id: str | None = None) -> str | None:
     conn=db()
-    rows=conn.execute("SELECT source_id, authors, year, title FROM sources WHERE year=?", (str(year)[:4],)).fetchall()
+    rows=conn.execute("SELECT source_id, authors, year, title, doi FROM sources").fetchall()
     conn.close()
+    doi_norm=normalize_doi(doi)
+    if doi_norm:
+        for r in rows:
+            if excluding_source_id and r["source_id"] == excluding_source_id:
+                continue
+            if normalize_doi(r["doi"]) == doi_norm:
+                return r["source_id"]
+    if canonical_source_id:
+        for r in rows:
+            if excluding_source_id and r["source_id"] == excluding_source_id:
+                continue
+            if r["source_id"] == canonical_source_id or source_canonical_id(r) == canonical_source_id:
+                return r["source_id"]
+    ybase=year_base(year)
     for r in rows:
         if excluding_source_id and r["source_id"] == excluding_source_id:
             continue
-        if author_key in source_author_keys(r["authors"]):
+        if ybase and str(r["year"] or "")[:4] != ybase:
+            continue
+        if author_key and author_key in source_author_keys(r["authors"]):
             return r["source_id"]
-        # fallback: author key appears in title/authors text
-        if author_key and author_key in normalize_key(" ".join([r["authors"] or "", r["title"] or ""])):
+        hay=compact_key(" ".join([r["authors"] or "", r["title"] or ""]))
+        if author_key and author_key in hay:
             return r["source_id"]
     return None
 
@@ -1573,34 +1699,64 @@ def body_without_references(text: str) -> str:
     return text[:m.start()] if m else text
 
 
+def clean_reference_raw(raw: str) -> str:
+    raw=re.sub(r"<a\s+id=['\"][^'\"]+['\"]\s*>\s*</a>", " ", raw, flags=re.I)
+    raw=re.sub(r"\*—\s*Page\s+\d+\s+of\s+\d+\s+—\*", " ", raw)
+    raw=re.sub(r"---", " ", raw)
+    raw=re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", raw)
+    raw=re.sub(r"\s+", " ", raw).strip(" -\t\n")
+    return raw
+
+
+def parse_reference_author_year_title(raw: str) -> tuple[str, str, str, str]:
+    year_m=re.search(r"\b((?:19|20)\d{2}[a-z]?)\b", raw, flags=re.I)
+    year=year_m.group(1).lower() if year_m else ""
+    author_part=raw[:year_m.start()] if year_m else raw
+    author_key=author_key_from_author_part(author_part)
+    title=""
+    if year_m:
+        rest=raw[year_m.end():].strip(" .,)–-")
+        # APA: title follows year. Elsevier-ish: title follows year after comma/period.
+        title=re.sub(r"[*_`]+", "", rest.split(".",1)[0]).strip(" .,-_")[:300]
+    return author_key, year, title, author_part.strip()
+
+
 def parse_reference_lines(text: str, source_id: str) -> list[dict[str, Any]]:
     refs=references_section(text)
     if not refs:
         return []
-    # Keep each bullet/paragraph-ish line. This is intentionally conservative.
-    raw_lines=[]
-    for block in re.split(r"\n\s*\n|\n(?=\s*-\s+|\s*\[?\d+\]?\s+|\s*[A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+,)", refs):
-        b=re.sub(r"\s+", " ", block.strip(" -\n\t"))
-        if len(b) > 20 and re.search(r"\b(19|20)\d{2}[a-z]?\b", b):
-            raw_lines.append(b)
     rows=[]; seen=set()
-    for raw in raw_lines:
-        year_m=re.search(r"\b((?:19|20)\d{2})[a-z]?\b", raw)
-        year=year_m.group(1) if year_m else ""
-        author_key=first_author_key_from_text(raw[:year_m.start()] if year_m else raw)
-        doi_m=re.search(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", raw, flags=re.I)
-        doi=doi_m.group(0).rstrip(".,)") if doi_m else ""
-        # crude title guess: text after year until next period.
-        title=""
-        if year_m:
-            rest=raw[year_m.end():].strip(" .,)–-")
-            title=rest.split(".",1)[0].strip()[:300]
-        key=f"{author_key}:{year}:{doi or title[:60]}"
+    # Prefer markdown references with explicit anchors. These anchors are the only reliable
+    # way to couple markdown-linked in-text citations to reference-list entries.
+    anchor_pat=re.compile(r"(?ms)^\s*-\s*(?:<a\s+id=['\"]([^'\"]+)['\"]\s*>\s*</a>)?\s*(.*?)(?=^\s*-\s*(?:<a\s+id=|[A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+,)|\Z)")
+    anchored_blocks=[]; bullet_blocks=[]
+    for m in anchor_pat.finditer(refs):
+        anchor=m.group(1) or ""
+        raw=clean_reference_raw(m.group(2))
+        if len(raw) > 20 and re.search(r"\b(?:19|20)\d{2}[a-z]?\b", raw, flags=re.I):
+            if anchor:
+                anchored_blocks.append((anchor,raw))
+            elif len(raw) < 2500:
+                bullet_blocks.append(("",raw))
+    blocks = anchored_blocks or bullet_blocks
+    # Fallback for reference lists without anchors/bullets.
+    if not blocks:
+        for block in re.split(r"\n\s*\n|\n(?=\s*\[?\d+\]?\s+|\s*[A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+,)", refs):
+            raw=clean_reference_raw(block)
+            if len(raw) > 20 and re.search(r"\b(?:19|20)\d{2}[a-z]?\b", raw, flags=re.I):
+                blocks.append(("",raw))
+    for anchor, raw in blocks:
+        author_key, year, title, author_part = parse_reference_author_year_title(raw)
+        doi=extract_doi_from_text(raw)
+        canonical=deterministic_source_id(author_key, year, title, doi)
+        # Reference instance is stable within the citing source; canonical_source_id is stable globally.
+        reference_id=f"REF-{source_id}-{anchor or canonical}"
+        key=f"{reference_id}:{canonical}"
         if key in seen:
             continue
         seen.add(key)
-        ref_id=f"REF-{source_id}-{len(rows)+1:05d}"
-        rows.append({"reference_id": ref_id, "source_id": source_id, "raw_text": raw, "author_key": author_key, "year": year, "title": title, "doi": doi, "matched_source_id": match_local_source(author_key, year, source_id), "status": "matched_local" if match_local_source(author_key, year, source_id) else "missing_source", "created_at": now()})
+        matched=match_local_source(author_key, year, source_id, doi=doi, canonical_source_id=canonical)
+        rows.append({"reference_id": reference_id, "source_id": source_id, "reference_anchor": anchor, "raw_text": raw, "author_key": author_key, "year": year, "title": title, "doi": doi, "canonical_source_id": canonical, "matched_source_id": matched, "status": "matched_local" if matched else "missing_source", "created_at": now()})
     return rows
 
 
@@ -1610,7 +1766,6 @@ def sentence_context_for_span(text: str, start: int, end: int, max_chars: int = 
     left = 0 if left < 0 else left + 1
     right_candidates=[x for x in [text.find(". ", end), text.find("\n\n", end), text.find("! ",end), text.find("? ",end)] if x != -1]
     right=min(right_candidates)+1 if right_candidates else min(len(text), end+max_chars//2)
-    # Bound if sentence/paragraph is huge.
     if right-left > max_chars:
         left=max(0, start - max_chars//2)
         right=min(len(text), end + max_chars//2)
@@ -1632,24 +1787,36 @@ def classify_citation_function(context: str) -> str:
 
 
 def parse_citation_parts(citation_text: str) -> list[tuple[str, str, str]]:
-    """Return list of (author_key, year, raw_part) from a citation string."""
+    """Return list of (author_key, year_token, raw_part) from citation label/string."""
     out=[]
-    raw=citation_text.strip()
-    # Remove outer parentheses for parenthetical citations.
+    raw=str(citation_text or "").strip()
     inner=raw[1:-1] if raw.startswith("(") and raw.endswith(")") else raw
     parts=re.split(r";", inner)
     for part in parts:
-        years=list(re.finditer(r"\b((?:19|20)\d{2})[a-z]?\b", part))
+        part=re.sub(r"^\s*(?:i\.e\.|e\.g\.|eg|see|cf\.?)\s*,?\s*", "", part, flags=re.I)
+        years=list(re.finditer(r"\b((?:19|20)\d{2}[a-z]?)\b", part, flags=re.I))
         if not years:
             continue
+        # Use text before first year for all years in same part, e.g. Cullen et al., 2020, 2021.
+        author_part=part[:years[0].start()].strip(" ,;()")
+        # Reject numeric/statistical or prose parentheses such as "(34.5% of the total EU annual budget in 2020)"
+        # or "(As in the previous study ... 2022b)".
+        if re.search(r"[0-9%]", author_part):
+            continue
+        first_token = re.match(r"\s*([A-Za-zÀ-ÖØ-öø-ÿ]+)", author_part or "")
+        if first_token and first_token.group(1)[0].islower() and first_token.group(1).lower() not in {"van", "von", "de", "del", "da", "der"}:
+            continue
+        if re.match(r"(?i)^(as in|where|when|while|because|although|if)\b", author_part.strip()):
+            continue
+        if len(re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿ]+", author_part)) > 8 and not re.search(r"(?i)(commission|council|parliament|agency|organization|organisation|environment|observatory|journal|union)", author_part):
+            continue
+        author_key=author_key_from_author_part(author_part)
+        if not author_key and out:
+            author_key=out[-1][0]
+        if not author_key:
+            continue
         for ym in years:
-            before=part[:ym.start()].strip(" ,;()")
-            # If no author in this segment (e.g. 2020, 2021), reuse previous author if possible.
-            author_key=first_author_key_from_text(before)
-            if not author_key and out:
-                author_key=out[-1][0]
-            if author_key:
-                out.append((author_key, ym.group(1), part.strip()))
+            out.append((author_key, ym.group(1).lower(), part.strip()))
     return out
 
 
@@ -1658,40 +1825,51 @@ def extract_intext_citations(text: str, source_id: str) -> list[dict[str, Any]]:
     offsets=line_offsets(text)
     candidates=[]
     # Markdown-linked citations: [Author et al., 2020](#ref-001).
-    # Many parsed markdown papers use this form, which breaks plain parenthetical regexes.
-    for m in re.finditer(r"\[([^\]]*?\b(?:19|20)\d{2}[a-z]?[^\]]*?)\]\([^)]+\)", text):
-        label=m.group(1)
-        for author_key, year, raw_part in parse_citation_parts(label):
+    link_re=re.compile(r"\[([^\]]*?\b(?:19|20)\d{2}[a-z]?[^\]]*?)\]\((#[^)]+)\)", flags=re.I)
+    for m in link_re.finditer(text):
+        label=m.group(1); anchor=m.group(2).lstrip("#")
+        parts=parse_citation_parts(label)
+        # Usually one reference per markdown link. Keep all parsed years just in case.
+        for author_key, year, raw_part in parts:
             cs,ce,ctx=sentence_context_for_span(text, m.start(), m.end())
-            candidates.append((m.start(), m.end(), label, author_key, year, ctx, cs, ce))
+            candidates.append((m.start(), m.end(), label, author_key, year, anchor, ctx, cs, ce))
     # Parenthetical citations: (Author et al., 2020; Smith, 2021)
-    for m in re.finditer(r"\((?:[^()\n]{0,260}?\b(?:19|20)\d{2}[a-z]?[^()\n]{0,180}?)\)", text):
+    for m in re.finditer(r"\((?:[^()\n]{0,260}?\b(?:19|20)\d{2}[a-z]?[^()\n]{0,180}?)\)", text, flags=re.I):
         citation=m.group(0)
-        # Skip pure years or equations.
         if not re.search(r"[A-Za-zÀ-ÖØ-öø-ÿ]", citation):
             continue
+        # Avoid double counting citations already captured as markdown links by checking if span is inside link label? Simple overlap guard later.
         for author_key, year, raw_part in parse_citation_parts(citation):
             cs,ce,ctx=sentence_context_for_span(text, m.start(), m.end())
-            candidates.append((m.start(), m.end(), citation, author_key, year, ctx, cs, ce))
-    # Narrative citations: Smith et al. (2020)
-    for m in re.finditer(r"\b([A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:\s+et\s+al\.)?)\s*\(\s*((?:19|20)\d{2})[a-z]?\s*\)", text):
-        author_key=first_author_key_from_text(m.group(1))
-        year=m.group(2)
+            candidates.append((m.start(), m.end(), citation, author_key, year, "", ctx, cs, ce))
+    # Narrative citations: Smith et al. (2020), Knowler and Bradshaw (2007).
+    # Case-sensitive on the leading author to avoid matching fragments like "al. (2021)".
+    narrative_re = re.compile(r"\b([A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:\s+(?:and|&)\s+[A-Z][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+)?(?:\s+et\s+al\.)?)\s*\(\s*((?:19|20)\d{2}[a-z]?)\s*\)")
+    for m in narrative_re.finditer(text):
+        author_key=author_key_from_author_part(m.group(1))
+        year=m.group(2).lower()
         cs,ce,ctx=sentence_context_for_span(text, m.start(), m.end())
-        candidates.append((m.start(), m.end(), m.group(0), author_key, year, ctx, cs, ce))
-    # Dedup same citation at same char position.
-    rows=[]; seen=set()
-    for start,end,citation,author_key,year,ctx,cs,ce in sorted(candidates, key=lambda x:(x[0],x[3],x[4])):
-        key=(start,end,author_key,year)
+        candidates.append((m.start(), m.end(), m.group(0), author_key, year, "", ctx, cs, ce))
+    rows=[]; seen=set(); occupied=[]
+    for start,end,citation,author_key,year,anchor,ctx,cs,ce in sorted(candidates, key=lambda x:(x[0],x[3],x[4],x[5])):
+        # If a plain citation span is fully inside an already captured markdown-link citation, skip it.
+        if not anchor and any(os <= start and end <= oe for os,oe in occupied):
+            continue
+        key=(start,end,author_key,year,anchor)
         if key in seen:
             continue
         seen.add(key)
-        matched=match_local_source(author_key, year, source_id)
+        if anchor:
+            occupied.append((start,end))
+        canonical=deterministic_source_id(author_key, year, "")
+        matched=match_local_source(author_key, year, source_id, canonical_source_id=canonical)
         cid=f"CITCTX-{source_id}-{len(rows)+1:05d}"
         rows.append({
             "context_id": cid,
             "citing_source_id": source_id,
             "reference_id": None,
+            "reference_anchor": anchor,
+            "canonical_source_id": canonical,
             "cited_author_key": author_key,
             "cited_year": year,
             "citation_text": citation,
@@ -1719,17 +1897,62 @@ def cmd_extract_citations(args):
     if args.clear:
         cur.execute("DELETE FROM citation_contexts WHERE citing_source_id=?", (args.source_id,))
         cur.execute("DELETE FROM source_references WHERE source_id=?", (args.source_id,))
-    # Insert refs and create a lookup by author/year for context linking.
-    ref_lookup={}
+    # Insert refs and create robust lookups for citation -> reference coupling.
+    ref_by_anchor={}
+    ref_by_author_year={}
+    ref_by_author_baseyear={}
+    ref_by_canonical={}
     for r in refs:
-        cur.execute("""INSERT OR REPLACE INTO source_references VALUES (?,?,?,?,?,?,?,?,?,?)""", (r["reference_id"], r["source_id"], r["raw_text"], r["author_key"], r["year"], r["title"], r["doi"], r["matched_source_id"], r["status"], r["created_at"]))
-        ref_lookup[(r["author_key"], r["year"])]=r["reference_id"]
+        cur.execute("""INSERT OR REPLACE INTO source_references
+            (reference_id, source_id, reference_anchor, raw_text, author_key, year, title, doi, canonical_source_id, matched_source_id, status, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (r["reference_id"], r["source_id"], r.get("reference_anchor"), r["raw_text"], r["author_key"], r["year"], r["title"], r["doi"], r.get("canonical_source_id"), r["matched_source_id"], r["status"], r["created_at"]))
+        if r.get("reference_anchor"):
+            ref_by_anchor[r["reference_anchor"]]=r
+        ref_by_author_year[(r["author_key"], r["year"])]=r
+        ref_by_author_baseyear.setdefault((r["author_key"], year_base(r["year"])), r)
+        if r.get("canonical_source_id"):
+            ref_by_canonical[r["canonical_source_id"]]=r
     for c in ctxs:
-        c["reference_id"]=ref_lookup.get((c["cited_author_key"], c["cited_year"]))
-        cur.execute("""INSERT OR REPLACE INTO citation_contexts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (c["context_id"], c["citing_source_id"], c["reference_id"], c["cited_author_key"], c["cited_year"], c["citation_text"], c["char_start"], c["char_end"], c["line_start"], c["line_end"], c["context_text"], c["citation_function"], c["matched_source_id"], c["verification_status"], c["verification_note"], c["created_at"], c["updated_at"]))
+        ref=None
+        if c.get("reference_anchor"):
+            ref=ref_by_anchor.get(c["reference_anchor"])
+        if not ref:
+            ref=ref_by_author_year.get((c["cited_author_key"], c["cited_year"]))
+        if not ref:
+            ref=ref_by_author_baseyear.get((c["cited_author_key"], year_base(c["cited_year"])))
+        if ref:
+            c["reference_id"]=ref["reference_id"]
+            c["canonical_source_id"]=ref.get("canonical_source_id") or c.get("canonical_source_id")
+            c["matched_source_id"]=ref.get("matched_source_id") or c.get("matched_source_id")
+            c["verification_status"] = "needs_verification" if c.get("matched_source_id") else "missing_source"
+        cur.execute("""INSERT OR REPLACE INTO citation_contexts
+            (context_id, citing_source_id, reference_id, reference_anchor, canonical_source_id, cited_author_key, cited_year, citation_text, char_start, char_end, line_start, line_end, context_text, citation_function, matched_source_id, verification_status, verification_note, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (c["context_id"], c["citing_source_id"], c.get("reference_id"), c.get("reference_anchor"), c.get("canonical_source_id"), c["cited_author_key"], c["cited_year"], c["citation_text"], c["char_start"], c["char_end"], c["line_start"], c["line_end"], c["context_text"], c["citation_function"], c["matched_source_id"], c["verification_status"], c["verification_note"], c["created_at"], c["updated_at"]))
     conn.commit(); conn.close()
     payload={"source_id": args.source_id, "source_references": len(refs), "citation_contexts": len(ctxs), "matched_contexts": sum(1 for c in ctxs if c["matched_source_id"]), "missing_source_contexts": sum(1 for c in ctxs if not c["matched_source_id"])}
     print_json(payload) if args.json else print(f"Extracted {len(refs)} references and {len(ctxs)} citation contexts for {args.source_id} ({payload['matched_contexts']} matched local sources).")
+
+
+def cmd_reference_report(args):
+    init_db(True)
+    conn=db(); cur=conn.cursor()
+    where=[]; params=[]
+    if args.source_id:
+        where.append("source_id=?"); params.append(args.source_id)
+    if args.status:
+        where.append("status=?"); params.append(args.status)
+    sql="SELECT * FROM source_references" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY source_id, reference_anchor, reference_id"
+    rows=[dict(r) for r in cur.execute(sql, params).fetchall()]
+    conn.close()
+    if args.json:
+        print_json({"count":len(rows),"references":rows[:args.limit]}); return
+    print(f"References: {len(rows)}")
+    for r in rows[:args.limit]:
+        print(f"\n{r['reference_id']} | anchor={r.get('reference_anchor') or '-'} | canonical={r.get('canonical_source_id')} | status={r.get('status')}")
+        print(f"author_key={r.get('author_key')} year={r.get('year')} doi={r.get('doi') or '-'} matched={r.get('matched_source_id') or '-'}")
+        print(short(r.get('title') or r.get('raw_text'), 260))
 
 
 def build_citation_summary(source_id: str | None = None, limit: int = 20) -> dict[str, Any]:
@@ -1744,7 +1967,7 @@ def build_citation_summary(source_id: str | None = None, limit: int = 20) -> dic
     for r in rows:
         status_counts[r["verification_status"]]=status_counts.get(r["verification_status"],0)+1
         function_counts[r["citation_function"]]=function_counts.get(r["citation_function"],0)+1
-        key=f"{r.get('cited_author_key')} {r.get('cited_year')}"
+        key=r.get('canonical_source_id') or f"{r.get('cited_author_key')} {r.get('cited_year')}"
         if r.get("matched_source_id"):
             matched[r["matched_source_id"]]=matched.get(r["matched_source_id"],0)+1
         else:
@@ -1754,7 +1977,7 @@ def build_citation_summary(source_id: str | None = None, limit: int = 20) -> dic
     for r in rows:
         if len(priority) >= limit: break
         if r.get("verification_status") in ["missing_source","needs_source","needs_verification"] or r.get("citation_function") in ["supporting_evidence","contradiction_or_qualification","method_or_framework"]:
-            priority.append({"handle": citation_context_handle(r["context_id"]), "context_id": r["context_id"], "citing_source_id": r["citing_source_id"], "cited": f"{r.get('cited_author_key')} {r.get('cited_year')}", "matched_source_id": r.get("matched_source_id"), "function": r.get("citation_function"), "status": r.get("verification_status"), "context_preview": short(r.get("context_text"), 260)})
+            priority.append({"handle": citation_context_handle(r["context_id"]), "context_id": r["context_id"], "citing_source_id": r["citing_source_id"], "cited": r.get("canonical_source_id") or f"{r.get('cited_author_key')} {r.get('cited_year')}", "matched_source_id": r.get("matched_source_id"), "function": r.get("citation_function"), "status": r.get("verification_status"), "context_preview": short(r.get("context_text"), 260)})
     return {"source_id": source_id, "reference_count": len(refs), "citation_context_count": len(rows), "status_counts": status_counts, "function_counts": function_counts, "matched_source_counts": matched, "top_missing_cited_sources": [{"cited":k,"count":v} for k,v in top_missing], "priority_contexts": priority}
 
 
@@ -1806,7 +2029,8 @@ def cmd_citation_report(args):
     print("Functions:", functions)
     for r in rows[:args.limit]:
         target=r.get("matched_source_id") or "MISSING"
-        print(f"\n{r['context_id']} | {r['citing_source_id']} -> {r['cited_author_key']} {r['cited_year']} ({target}) | {r['citation_function']} | {r['verification_status']}")
+        cited = r.get('canonical_source_id') or f"{r['cited_author_key']} {r['cited_year']}"
+        print(f"\n{r['context_id']} | {r['citing_source_id']} -> {cited} ({target}) | {r['citation_function']} | {r['verification_status']}")
         print(short(r['context_text'], 320))
 
 
@@ -1821,7 +2045,8 @@ def cmd_citation_context(args):
         payload["target_claim_suggestions"] = retrieve_claims(r.get("context_text", ""), args.limit, "standard", {"source_id": r["matched_source_id"]})
     if args.json:
         print_json(payload); return
-    print(f"{r['context_id']} | {r['citing_source_id']} cites {r['cited_author_key']} {r['cited_year']} -> {r.get('matched_source_id') or 'MISSING'}")
+    cited = r.get('canonical_source_id') or f"{r['cited_author_key']} {r['cited_year']}"
+    print(f"{r['context_id']} | {r['citing_source_id']} cites {cited} -> {r.get('matched_source_id') or 'MISSING'}")
     print(f"Function: {r['citation_function']} | Status: {r['verification_status']}")
     print("\n--- citing context ---")
     print(r["context_text"])
@@ -1949,6 +2174,8 @@ def main():
     rev=sub.add_parser("review"); rev.add_argument("claim_id"); rev.add_argument("status", choices=sorted(STATUSES)); rev.add_argument("--note"); rev.add_argument("--actor"); rev.set_defaults(func=cmd_review)
     ec=sub.add_parser("extract-citations", help="Extract reference-list entries and in-text citation contexts for backtracking")
     ec.add_argument("source_id"); ec.add_argument("--clear", action="store_true"); ec.add_argument("--json", action="store_true"); ec.set_defaults(func=cmd_extract_citations)
+    rr=sub.add_parser("reference-report", help="List parsed reference-list entries with stable canonical IDs")
+    rr.add_argument("--source-id"); rr.add_argument("--status"); rr.add_argument("--limit", type=int, default=50); rr.add_argument("--json", action="store_true"); rr.set_defaults(func=cmd_reference_report)
     csum=sub.add_parser("citation-summary", help="Compressed citation/backtracking summary with handles")
     csum.add_argument("--source-id"); csum.add_argument("--limit", type=int, default=20); csum.add_argument("--json", action="store_true"); csum.set_defaults(func=cmd_citation_summary)
     cr=sub.add_parser("citation-report", help="Summarize extracted citation contexts")

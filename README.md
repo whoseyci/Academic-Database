@@ -142,10 +142,13 @@ Extract citation contexts for reference-web/backtracking:
 
 ```bash
 python rh2.py extract-citations Canessa_2024 --clear
+python rh2.py reference-report --source-id Canessa_2024 --limit 20
 python rh2.py citation-summary --source-id Canessa_2024 --limit 20
 python rh2.py citation-report --source-id Canessa_2024 --limit 20
 python rh2.py citation-context CITCTX-Canessa_2024-00001 --limit 5
 ```
+
+Reference identities are now stable: DOI-backed references use DOI-derived canonical IDs, while non-DOI references use deterministic `author + first title word + year` IDs.
 
 Check stats:
 
