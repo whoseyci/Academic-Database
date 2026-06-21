@@ -48,6 +48,10 @@ https://whoseyci.github.io/Academic-Database/
 
 Note: full source papers are intentionally ignored via `.gitignore` (`blobs/*.gz`) to avoid publishing copyrighted source text. The GitHub Pages export includes metadata, claim/evidence excerpts, tags, network data and bounded context snippets.
 
+## Agent protocol
+
+See [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md). Short version: agents should operate over claim IDs, evidence grades, review statuses and bounded source context — not vague model memory of the literature.
+
 ## Key commands
 
 Initialize:
@@ -150,6 +154,25 @@ python rh2.py citation-context CITCTX-Canessa_2024-00001 --limit 5
 
 Reference identities are now stable: DOI-backed references use DOI-derived canonical IDs, while non-DOI references use deterministic `author + first title word + year` IDs.
 
+Audit a draft for claim traceability:
+
+```bash
+python rh2.py audit-draft chapter.md
+```
+
+List computed evidence grades:
+
+```bash
+python rh2.py evidence-grades --grade C
+```
+
+Record a contradiction/qualification/tension between claims:
+
+```bash
+python rh2.py relate CLAIM_A CLAIM_B contradicts --note "Different geography or method."
+python rh2.py relations --claim-id CLAIM_A
+```
+
 Check stats:
 
 ```bash
@@ -169,6 +192,26 @@ source sentence compound/ambiguous    -> claim_representation = paraphrase
 ```
 
 The exact source evidence is always stored and anchored by character offsets.
+
+## Evidence grades and draft traceability
+
+Claim cards include a conservative computed `evidence_grade`:
+
+```text
+A = verified, page-anchored, source-like representation
+B = verified or strongly anchored but not perfect
+C = usable candidate/paraphrase or page-uncertain support
+D = weak/unanchored candidate
+X = rejected or superseded
+```
+
+Drafts should attach claim IDs to substantive statements, for example:
+
+```markdown
+Trust and perceived policy stability are associated with AECM uptake. <!-- claims: CLM-Canessa_2024-0020 -->
+```
+
+Then run `python rh2.py audit-draft chapter.md` before final use.
 
 ## Current imported trial stats
 
@@ -202,3 +245,5 @@ python rh2.py context CLAIM_ID --window 600
 ```
 
 for claims it intends to use centrally.
+
+Chapter profiles are documented in [`config/chapter_profiles/SCHEMA.md`](config/chapter_profiles/SCHEMA.md).

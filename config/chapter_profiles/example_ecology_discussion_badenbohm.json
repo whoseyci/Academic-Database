@@ -4,33 +4,70 @@
   "purpose": "Demonstrate how a chapter profile gathers claim cards for a writing task from a single parsed markdown paper.",
   "minimum_source_diversity": 1,
   "global_filters": {
-    "source_ids": ["BadenBohm_2023"],
-    "statuses": ["verified", "candidate_needs_review", "needs_page_check"]
+    "source_ids": [
+      "BadenBohm_2023"
+    ],
+    "statuses": [
+      "verified",
+      "candidate_needs_review",
+      "needs_page_check"
+    ]
   },
   "sections": [
     {
       "section_id": "core_results",
       "heading": "Core result: biodiversity measures and colony density",
       "writing_goal": "Summarize the main modelled effects on Bombus terrestris colony density.",
-      "queries": ["biodiversity measures significant positive effect number of colonies pollen nectar food resources nesting habitat"],
-      "claim_types": ["empirical finding"],
+      "queries": [
+        "biodiversity measures significant positive effect number of colonies pollen nectar food resources nesting habitat"
+      ],
+      "claim_types": [
+        "empirical finding"
+      ],
       "limit": 8
     },
     {
       "section_id": "landscape_context",
       "heading": "Landscape context and semi-natural habitats",
       "writing_goal": "Explain how semi-natural habitats and landscape composition modify measure effectiveness.",
-      "queries": ["semi-natural habitats landscape composition context modifies effect colony density strongest weakest effect"],
-      "claim_types": ["empirical finding", "theoretical claim", "policy implication"],
+      "queries": [
+        "semi-natural habitats landscape composition context modifies effect colony density strongest weakest effect"
+      ],
+      "claim_types": [
+        "empirical finding",
+        "theoretical claim",
+        "policy implication"
+      ],
       "limit": 8
     },
     {
       "section_id": "limitations",
       "heading": "Model limitations and caution",
       "writing_goal": "Surface limitations that must constrain interpretation.",
-      "queries": ["limitation model phenology annual variation grassland forest not defined food nesting habitats underestimated"],
-      "claim_types": ["limitation"],
+      "queries": [
+        "limitation model phenology annual variation grassland forest not defined food nesting habitats underestimated"
+      ],
+      "claim_types": [
+        "limitation"
+      ],
       "limit": 5
     }
+  ],
+  "research_questions": [
+    "chapter-specific evidence synthesis"
+  ],
+  "allowed_statuses": [
+    "verified",
+    "candidate_needs_review",
+    "needs_page_check"
+  ],
+  "required_topics": [
+    "biodiversity measures",
+    "landscape context",
+    "limitations"
+  ],
+  "avoid": [
+    "Do not use candidate or page-check claims as final publication evidence without review.",
+    "Do not generalize beyond the source geography, methodology or study organism/case."
   ]
 }

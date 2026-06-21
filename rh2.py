@@ -10,7 +10,7 @@ V2's design bias:
 """
 from __future__ import annotations
 
-import argparse, csv, gzip, hashlib, json, re, shutil, sqlite3, sys, textwrap, uuid
+import argparse, collections, csv, gzip, hashlib, json, re, shutil, sqlite3, sys, textwrap, uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
@@ -27,7 +27,9 @@ CLAIM_TYPES = {
     "empirical finding", "theoretical claim", "methodological claim", "definition",
     "policy implication", "limitation", "background", "contradiction", "unknown"
 }
-STATUSES = {"verified", "rejected", "candidate_needs_review", "needs_page_check", "needs_source_check"}
+STATUSES = {"verified", "rejected", "candidate_needs_review", "needs_page_check", "needs_source_check", "superseded"}
+EVIDENCE_GRADES = {"A", "B", "C", "D", "X"}
+RELATION_TYPES = {"supports", "contradicts", "qualifies", "same_concept", "methodologically_incompatible", "stronger_than", "weaker_than", "supersedes"}
 
 PAGE_MARKER_RE = re.compile(
     r"(?im)^[ \t]*(?:"
@@ -290,6 +292,11 @@ def read_source_text(source_id: str) -> str:
     if not row:
         raise SystemExit(f"Unknown source_id: {source_id}")
     path = ROOT / row["blob_path"]
+    if not path.exists():
+        raise SystemExit(
+            f"Source blob is not available locally for {source_id}: {path}. "
+            "Full source blobs are intentionally gitignored; re-ingest the source markdown or restore blobs/*.gz."
+        )
     with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
         return f.read()
 
@@ -462,7 +469,10 @@ def page_for_claim_dict(d: dict[str, Any]) -> str | None:
 def source_slice(source_id: str, char_start: int | None, char_end: int | None) -> str:
     if char_start is None or char_end is None:
         return ""
-    text = read_source_text(source_id)
+    try:
+        text = read_source_text(source_id)
+    except SystemExit:
+        return ""
     try:
         start=max(0, int(char_start)); end=min(len(text), int(char_end))
     except Exception:
@@ -642,6 +652,36 @@ def tags_for_claim(claim_id: str) -> list[str]:
     return [f"{r['tag_type']}:{r['tag']}" for r in rows]
 
 
+def evidence_grade(row: sqlite3.Row|dict[str, Any]) -> str:
+    """Conservative writing-time grade derived from status, page/offset anchoring and representation."""
+    d=dict(row)
+    status=d.get("verification_status") or ""
+    if status in {"rejected", "superseded"}:
+        return "X"
+    rep=d.get("claim_representation") or ""
+    page_status=d.get("page_status") or ""
+    has_offsets=d.get("char_start") is not None and d.get("char_end") is not None
+    page_ok=bool(d.get("page")) and page_status not in {"needs_page_check", ""}
+    if status == "verified" and page_ok and rep in {"source_quote", "lightly_normalized_source", "source_range"}:
+        return "A"
+    if status == "verified" or (has_offsets and page_ok and rep in {"source_quote", "lightly_normalized_source", "source_range"}):
+        return "B"
+    if has_offsets or d.get("page") or rep == "paraphrase":
+        return "C"
+    return "D"
+
+
+def claim_relations_for(claim_id: str) -> list[dict[str, Any]]:
+    conn=db()
+    rows=conn.execute("""
+        SELECT * FROM claim_relations
+        WHERE claim_a=? OR claim_b=?
+        ORDER BY created_at DESC
+    """, (claim_id, claim_id)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def upsert_claim(claim: dict[str, Any], tags: dict[str, list[str]]|None=None) -> None:
     init_db(True)
     claim_id=claim["claim_id"]; source_id=claim["source_id"]
@@ -684,7 +724,7 @@ def claim_card(row: sqlite3.Row|dict[str, Any], fields: str="minimal") -> dict[s
     card={
         "claim_id": d.get("claim_id"), "score": round(float(d.get("score", 0) or 0),4),
         "source_id": d.get("source_id"), "citation_hint": citation, "page": page_for_claim_dict(d),
-        "status": d.get("verification_status"), "claim_type": d.get("claim_type"),
+        "status": d.get("verification_status"), "evidence_grade": evidence_grade(d), "claim_type": d.get("claim_type"),
         "claim_representation": representation, "claim": display_claim,
     }
     if d.get("why_retrieved"): card["why_retrieved"] = d.get("why_retrieved")
@@ -692,7 +732,9 @@ def claim_card(row: sqlite3.Row|dict[str, Any], fields: str="minimal") -> dict[s
         card.update({"evidence": exact_text or d.get("evidence"), "scope_note": d.get("scope_note"), "line_start": d.get("line_start"), "line_end": d.get("line_end")})
     if fields == "full":
         card.update(d)
+        card["evidence_grade"] = evidence_grade(d)
         card["tags"] = tags_for_claim(d.get("claim_id"))
+        card["relations"] = claim_relations_for(d.get("claim_id"))
     return card
 
 
@@ -842,7 +884,7 @@ def cmd_retrieve(args):
     else:
         print(f"# retrieve: {args.query}\n")
         for r in results:
-            print(f"- **{r['claim_id']}** [{r['score']}] {r['citation_hint']} p.{r.get('page') or '?'} · {r['status']} · {r['claim_type']}")
+            print(f"- **{r['claim_id']}** [{r['score']}] grade:{r.get('evidence_grade')} · {r['citation_hint']} p.{r.get('page') or '?'} · {r['status']} · {r['claim_type']}")
             print(f"  {r['claim']}")
             if args.fields in ["standard","full"] and r.get("evidence"): print(f"  evidence: {short(r['evidence'])}")
             if r.get("why_retrieved"): print(f"  why: {', '.join(r['why_retrieved'])}")
@@ -853,13 +895,13 @@ def cmd_context(args):
     if not row: raise SystemExit(f"Unknown claim_id: {args.claim_id}")
     d=dict(row); text=read_source_text(d["source_id"])
     if args.mode == "full":
-        payload={"claim": claim_card(d,args.fields), "mode":"full", "source_id": d["source_id"], "context_start":0, "context_end":len(text), "context": text}
+        payload={"claim": claim_card(d,args.fields), "relations": claim_relations_for(args.claim_id), "mode":"full", "source_id": d["source_id"], "context_start":0, "context_end":len(text), "context": text}
     elif args.mode == "char":
         start=max(0, int(d["char_start"] or 0)-args.window); end=min(len(text), int(d["char_end"] or d["char_start"] or 0)+args.window)
-        payload={"claim": claim_card(d,args.fields), "mode":"char", "context_start": start, "context_end": end, "context": text[start:end]}
+        payload={"claim": claim_card(d,args.fields), "relations": claim_relations_for(args.claim_id), "mode":"char", "context_start": start, "context_end": end, "context": text[start:end]}
     else:
         ctx=sentence_aware_context(d["source_id"], int(d["char_start"] or 0), int(d["char_end"] or d["char_start"] or 0), radius=args.sentence_radius, outside_paragraph=args.outside_paragraph)
-        payload={"claim": claim_card(d,args.fields), **ctx}
+        payload={"claim": claim_card(d,args.fields), "relations": claim_relations_for(args.claim_id), **ctx}
     if args.json: print_json(payload); return
     print(f"{d['claim_id']} | {d['source_id']} | p.{claim_card(d).get('page') or '?'} | lines {d.get('line_start')}-{d.get('line_end')} | mode={payload.get('mode')}\n")
     print(textwrap.fill(payload["claim"].get("claim", ""), width=100)); print("\n--- context ---"); print(payload["context"])
@@ -1021,17 +1063,41 @@ def cmd_import_v1(args):
     print(f"Imported V1 → V2: {imported_sources} sources, {imported_claims} claims")
 
 
+def validate_chapter_profile(prof: dict[str, Any]) -> list[str]:
+    warnings=[]
+    if not prof.get("chapter_id") and not prof.get("chapter_title"):
+        warnings.append("Profile should define chapter_id or chapter_title.")
+    if not prof.get("purpose"):
+        warnings.append("Profile has no purpose.")
+    allowed=set(prof.get("allowed_statuses", []))
+    unknown_statuses=allowed - STATUSES
+    if unknown_statuses:
+        warnings.append(f"Unknown allowed_statuses: {sorted(unknown_statuses)}")
+    if not isinstance(prof.get("sections", []), list) or not prof.get("sections"):
+        warnings.append("Profile has no sections.")
+    for sec in prof.get("sections", []):
+        if not (sec.get("query") or sec.get("queries")):
+            warnings.append(f"Section {sec.get('section_id') or sec.get('heading') or '?'} has no query/queries.")
+    return warnings
+
+
 def load_chapter_profile(path_or_id: str) -> dict[str, Any]:
     p=Path(path_or_id)
     if not p.exists(): p=CHAPTER_PROFILES/f"{path_or_id}.json"
     if not p.exists(): raise SystemExit(f"Chapter profile not found: {path_or_id}")
-    return json.loads(p.read_text(encoding="utf-8"))
+    prof=json.loads(p.read_text(encoding="utf-8"))
+    warnings=validate_chapter_profile(prof)
+    if warnings:
+        prof.setdefault("profile_warnings", []).extend(warnings)
+    return prof
 
 
 def cmd_chapter_brief(args):
     prof=load_chapter_profile(args.profile)
     chapter_id=prof.get("chapter_id") or slug(prof.get("chapter_title","chapter"))
-    global_filters=prof.get("global_filters", {})
+    global_filters=dict(prof.get("global_filters", {}))
+    if prof.get("allowed_statuses") and not global_filters.get("statuses"):
+        global_filters["statuses"] = prof.get("allowed_statuses")
     sections=[]; used=set()
     for sec in prof.get("sections", []):
         q=" ".join(sec.get("queries", []) or [sec.get("query", "")])
@@ -1046,10 +1112,20 @@ def cmd_chapter_brief(args):
     status_counts={r["verification_status"]: r["n"] for r in conn.execute(f"SELECT verification_status, COUNT(*) n FROM claims WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY verification_status", list(used)).fetchall()} if used else {}
     source_counts={r["source_id"]: r["n"] for r in conn.execute(f"SELECT source_id, COUNT(*) n FROM claims WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY source_id", list(used)).fetchall()} if used else {}
     conn.close()
-    warnings=[]
+    warnings=list(prof.get("profile_warnings", []))
     if status_counts.get("verified",0)==0 and used: warnings.append("No verified claims in this chapter brief; use candidate claims for drafting only after review.")
     if len(source_counts) < prof.get("minimum_source_diversity", 1): warnings.append("Source diversity is below profile target.")
-    packet={"chapter_id": chapter_id, "chapter_title": prof.get("chapter_title"), "purpose": prof.get("purpose"), "writing_contract": prof.get("writing_contract", default_writing_contract()), "claim_count": len(used), "source_counts": source_counts, "status_counts": status_counts, "warnings": warnings, "sections": sections}
+    required_topics=set(prof.get("required_topics", []))
+    if required_topics and used:
+        conn2=db()
+        placeholders=','.join(['?']*len(used))
+        tag_rows=conn2.execute(f"SELECT DISTINCT tag FROM claim_tags WHERE claim_id IN ({placeholders})", list(used)).fetchall()
+        conn2.close()
+        present={r['tag'] for r in tag_rows}
+        missing=sorted(required_topics - present)
+        if missing:
+            warnings.append(f"Required topics not represented in retrieved claims: {missing}")
+    packet={"chapter_id": chapter_id, "chapter_title": prof.get("chapter_title"), "purpose": prof.get("purpose"), "research_questions": prof.get("research_questions", []), "required_topics": prof.get("required_topics", []), "avoid": prof.get("avoid", []), "allowed_statuses": prof.get("allowed_statuses", []), "writing_contract": prof.get("writing_contract", default_writing_contract()), "claim_count": len(used), "source_counts": source_counts, "status_counts": status_counts, "warnings": warnings, "sections": sections}
     out_json=EXPORTS/f"chapter_brief_{chapter_id}.json"; out_md=EXPORTS/f"chapter_brief_{chapter_id}.md"
     out_json.write_text(json.dumps(packet, ensure_ascii=False, indent=2), encoding="utf-8")
     md=render_chapter_brief_md(packet); out_md.write_text(md, encoding="utf-8")
@@ -1078,7 +1154,7 @@ def render_chapter_brief_md(packet: dict[str, Any]) -> str:
     for sec in packet.get("sections", []):
         lines += ["", f"## {sec.get('heading') or sec.get('section_id')}", "", f"Writing goal: {sec.get('writing_goal','')}", "", f"Query: `{sec.get('query','')}`", ""]
         for c in sec.get("claims", []):
-            lines.append(f"- **{c['claim_id']}** [{c['score']}] {c['citation_hint']} p.{c.get('page') or '?'} · {c['status']} · {c['claim_type']} · `{c.get('claim_representation')}`")
+            lines.append(f"- **{c['claim_id']}** [{c['score']}] grade:{c.get('evidence_grade')} · {c['citation_hint']} p.{c.get('page') or '?'} · {c['status']} · {c['claim_type']} · `{c.get('claim_representation')}`")
             lines.append(f"  - Claim: {c['claim']}")
             lines.append(f"  - Evidence: {short(c.get('evidence',''), 300)}")
             lines.append(f"  - Deep dive: `python rh2.py context {c['claim_id']} --window 500`")
@@ -1486,7 +1562,7 @@ def render_writing_brief_md(packet: dict[str, Any]) -> str:
     lines += ["", "## Evidence cards", ""]
     for c in packet.get("claims", []):
         lines.append(f"### {c.get('claim_id')} — {c.get('citation_hint')} p.{c.get('page') or '?'}")
-        lines.append(f"- Status/type: `{c.get('status')}` / `{c.get('claim_type')}`")
+        lines.append(f"- Status/type/grade: `{c.get('status')}` / `{c.get('claim_type')}` / `{c.get('evidence_grade')}`")
         lines.append(f"- Claim: {c.get('claim')}")
         lines.append(f"- Evidence: {c.get('evidence')}")
         if c.get("scope_note"):
@@ -2120,6 +2196,143 @@ def cmd_repair_evidence(args):
     print_json(payload) if args.json else print(f"Evidence repair {'dry-run ' if args.dry_run else ''}changed {len(changes)} claims")
 
 
+CLAIM_ID_RE = re.compile(r"\bCLM-[A-Za-z0-9_.-]+-\d{4,}\b")
+
+
+def draft_claim_ids(text: str) -> list[str]:
+    seen=[]
+    for m in CLAIM_ID_RE.finditer(text):
+        cid=m.group(0)
+        if cid not in seen:
+            seen.append(cid)
+    return seen
+
+
+def substantive_sentences_without_claim_ids(text: str, min_words: int=14) -> list[dict[str, Any]]:
+    cleaned=re.sub(r"```[\s\S]*?```", " ", text)
+    cleaned=re.sub(r"<!--([\s\S]*?)-->", " ", cleaned)
+    sentences=re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"“])", cleaned)
+    out=[]
+    for idx, sent in enumerate(sentences, 1):
+        s=sent.strip()
+        if not s or CLAIM_ID_RE.search(s):
+            continue
+        words=re.findall(r"\b[A-Za-z][A-Za-z-]+\b", s)
+        if len(words) >= min_words:
+            out.append({"sentence_no": idx, "word_count": len(words), "text": short(s, 320)})
+    return out
+
+
+def cmd_audit_draft(args):
+    text=Path(args.path).read_text(encoding="utf-8", errors="ignore")
+    ids=draft_claim_ids(text)
+    conn=db()
+    known=[]; unknown=[]
+    for cid in ids:
+        row=conn.execute("SELECT * FROM claims WHERE claim_id=?", (cid,)).fetchone()
+        if row:
+            card=claim_card(row, "standard")
+            card["relations"] = claim_relations_for(cid)
+            known.append(card)
+        else:
+            unknown.append(cid)
+    status_counts=collections.Counter(c["status"] for c in known)
+    grade_counts=collections.Counter(c["evidence_grade"] for c in known)
+    source_counts=collections.Counter(c["source_id"] for c in known)
+    flagged=[]
+    for c in known:
+        if c["status"] != "verified":
+            flagged.append({"claim_id": c["claim_id"], "issue": "not_verified", "status": c["status"], "grade": c["evidence_grade"]})
+        if c["evidence_grade"] in {"C", "D", "X"}:
+            flagged.append({"claim_id": c["claim_id"], "issue": "weak_evidence_grade", "status": c["status"], "grade": c["evidence_grade"]})
+    uncited=substantive_sentences_without_claim_ids(text, args.min_words)
+    payload={
+        "draft": str(args.path),
+        "claim_ids_found": ids,
+        "known_claims": len(known),
+        "unknown_claim_ids": unknown,
+        "status_counts": dict(status_counts),
+        "evidence_grade_counts": dict(grade_counts),
+        "source_counts": dict(source_counts),
+        "flagged_claims": flagged,
+        "uncited_substantive_sentences": uncited[:args.show_uncited],
+        "uncited_substantive_sentence_count": len(uncited),
+        "recommendations": []
+    }
+    if unknown:
+        payload["recommendations"].append("Resolve unknown claim IDs or remove stale references.")
+    if status_counts.get("verified",0) < len(known):
+        payload["recommendations"].append("Review candidate/page-check/source-check claims before final submission.")
+    if len(source_counts) < args.min_sources and known:
+        payload["recommendations"].append(f"Increase source diversity: {len(source_counts)} source(s), target {args.min_sources}.")
+    if uncited:
+        payload["recommendations"].append("Attach claim IDs to substantive draft sentences or mark them as interpretation.")
+    conn.close()
+    if args.json:
+        print_json(payload)
+    else:
+        print(f"Draft: {args.path}")
+        print(f"Known claim IDs: {len(known)} | unknown: {len(unknown)}")
+        print(f"Statuses: {dict(status_counts)}")
+        print(f"Evidence grades: {dict(grade_counts)}")
+        print(f"Sources: {dict(source_counts)}")
+        if flagged:
+            print("\nFlagged claims:")
+            for f in flagged[:40]: print(f"- {f['claim_id']}: {f['issue']} ({f['status']}, grade {f['grade']})")
+        if unknown:
+            print("\nUnknown claim IDs:"); [print(f"- {cid}") for cid in unknown]
+        if uncited:
+            print(f"\nUncited substantive sentences: {len(uncited)}")
+            for u in uncited[:args.show_uncited]: print(f"- [{u['sentence_no']}] {u['text']}")
+        if payload["recommendations"]:
+            print("\nRecommendations:"); [print(f"- {x}") for x in payload["recommendations"]]
+
+
+def cmd_relate(args):
+    if args.claim_a == args.claim_b:
+        raise SystemExit("Cannot relate a claim to itself.")
+    conn=db()
+    for cid in [args.claim_a, args.claim_b]:
+        if not conn.execute("SELECT 1 FROM claims WHERE claim_id=?", (cid,)).fetchone():
+            raise SystemExit(f"Unknown claim_id: {cid}")
+    rid=args.relation_id or f"REL-{sha1_short(args.claim_a + args.claim_b + args.relation_type)[:10]}"
+    conn.execute("""INSERT OR REPLACE INTO claim_relations VALUES (?,?,?,?,?,?,?)""", (
+        rid, args.claim_a, args.claim_b, args.relation_type, args.note or "", args.status or "candidate_needs_review", now()
+    ))
+    conn.commit(); conn.close()
+    print(f"{rid}: {args.claim_a} --{args.relation_type}--> {args.claim_b}")
+
+
+def cmd_relations(args):
+    conn=db()
+    params=[]; where="1=1"
+    if args.claim_id:
+        where="(claim_a=? OR claim_b=?)"; params=[args.claim_id,args.claim_id]
+    if args.relation_type:
+        where += " AND relation_type=?"; params.append(args.relation_type)
+    rows=conn.execute(f"SELECT * FROM claim_relations WHERE {where} ORDER BY created_at DESC LIMIT ?", (*params,args.limit)).fetchall()
+    payload=[dict(r) for r in rows]
+    conn.close()
+    if args.json: print_json(payload)
+    else:
+        for r in payload:
+            print(f"{r['relation_id']} | {r['claim_a']} --{r['relation_type']}--> {r['claim_b']} | {r['status']} | {r.get('note','')}")
+
+
+def cmd_evidence_grades(args):
+    conn=db(); rows=conn.execute("SELECT * FROM claims ORDER BY source_id, claim_id").fetchall(); conn.close()
+    items=[]
+    for r in rows:
+        g=evidence_grade(r)
+        if args.grade and g != args.grade: continue
+        items.append({"claim_id": r["claim_id"], "grade": g, "status": r["verification_status"], "page_status": r["page_status"], "claim_representation": r["claim_representation"], "claim": short(r["claim"], 180)})
+    if args.json: print_json(items)
+    else:
+        counts=collections.Counter(x["grade"] for x in items)
+        print(f"Evidence grades: {dict(counts)}")
+        for x in items[:args.limit]: print(f"{x['claim_id']} grade:{x['grade']} {x['status']} {x['claim']}")
+
+
 def cmd_stats(args):
     conn=db(); cur=conn.cursor()
     tables=["sources","spans","claims","claim_tags","claim_relations","source_references","citation_contexts","review_events"]
@@ -2172,6 +2385,14 @@ def main():
     wb=sub.add_parser("writing-brief", help="Build a compact, budgeted evidence packet for an LLM/human writing a paragraph/section")
     wb.add_argument("query"); wb.add_argument("--section-type", choices=sorted(SECTION_TYPE_CLAIM_TYPES.keys())); wb.add_argument("--limit", type=int, default=10); wb.add_argument("--token-budget", type=int, default=1800); wb.add_argument("--source-id"); wb.add_argument("--verified-only", action="store_true"); wb.add_argument("--status"); wb.add_argument("--claim-type"); wb.add_argument("--max-per-source", type=int, default=0); wb.add_argument("--json", action="store_true"); wb.add_argument("--out"); wb.set_defaults(func=cmd_writing_brief)
     rev=sub.add_parser("review"); rev.add_argument("claim_id"); rev.add_argument("status", choices=sorted(STATUSES)); rev.add_argument("--note"); rev.add_argument("--actor"); rev.set_defaults(func=cmd_review)
+    rel=sub.add_parser("relate", help="Create or update a relation between two claims")
+    rel.add_argument("claim_a"); rel.add_argument("claim_b"); rel.add_argument("relation_type", choices=sorted(RELATION_TYPES)); rel.add_argument("--relation-id"); rel.add_argument("--note"); rel.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); rel.set_defaults(func=cmd_relate)
+    rels=sub.add_parser("relations", help="List claim relations / tension-map edges")
+    rels.add_argument("--claim-id"); rels.add_argument("--relation-type", choices=sorted(RELATION_TYPES)); rels.add_argument("--limit", type=int, default=50); rels.add_argument("--json", action="store_true"); rels.set_defaults(func=cmd_relations)
+    aud=sub.add_parser("audit-draft", help="Audit a markdown draft for claim-ID traceability and weak evidence")
+    aud.add_argument("path"); aud.add_argument("--min-words", type=int, default=14); aud.add_argument("--show-uncited", type=int, default=20); aud.add_argument("--min-sources", type=int, default=3); aud.add_argument("--json", action="store_true"); aud.set_defaults(func=cmd_audit_draft)
+    grd=sub.add_parser("evidence-grades", help="List computed claim evidence grades")
+    grd.add_argument("--grade", choices=sorted(EVIDENCE_GRADES)); grd.add_argument("--limit", type=int, default=80); grd.add_argument("--json", action="store_true"); grd.set_defaults(func=cmd_evidence_grades)
     ec=sub.add_parser("extract-citations", help="Extract reference-list entries and in-text citation contexts for backtracking")
     ec.add_argument("source_id"); ec.add_argument("--clear", action="store_true"); ec.add_argument("--json", action="store_true"); ec.set_defaults(func=cmd_extract_citations)
     rr=sub.add_parser("reference-report", help="List parsed reference-list entries with stable canonical IDs")

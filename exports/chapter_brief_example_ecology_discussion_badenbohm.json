@@ -2,6 +2,23 @@
   "chapter_id": "example_ecology_discussion_badenbohm",
   "chapter_title": "Example ecology discussion brief: biodiversity measures, nesting habitat and landscape context",
   "purpose": "Demonstrate how a chapter profile gathers claim cards for a writing task from a single parsed markdown paper.",
+  "research_questions": [
+    "chapter-specific evidence synthesis"
+  ],
+  "required_topics": [
+    "biodiversity measures",
+    "landscape context",
+    "limitations"
+  ],
+  "avoid": [
+    "Do not use candidate or page-check claims as final publication evidence without review.",
+    "Do not generalize beyond the source geography, methodology or study organism/case."
+  ],
+  "allowed_statuses": [
+    "verified",
+    "candidate_needs_review",
+    "needs_page_check"
+  ],
   "writing_contract": [
     "Use only claims from this packet unless you explicitly retrieve more evidence.",
     "Every substantive statement should map to at least one claim_id.",
@@ -18,7 +35,8 @@
     "candidate_needs_review": 15
   },
   "warnings": [
-    "No verified claims in this chapter brief; use candidate claims for drafting only after review."
+    "No verified claims in this chapter brief; use candidate claims for drafting only after review.",
+    "Required topics not represented in retrieved claims: ['limitations']"
   ],
   "sections": [
     {
@@ -34,6 +52,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "1",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Pollen and nectar supplied by biodiversity measures had positive effects in all three landscapes, while the effect of added nesting habitat varied among landscapes.",
@@ -52,6 +71,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "5",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "In Havelland, biodiversity measures providing food increased colony numbers significantly relative to BAU, but additional nesting habitat had no effect.",
@@ -70,6 +90,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "5",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "In Lower Bavaria and Rhine-Hesse, biodiversity measures had an additional positive effect when they offered nesting habitat as well as food resources.",
@@ -88,6 +109,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "6",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Semi-natural habitat area had a stronger positive effect on bumblebee colony numbers than biodiversity-measure area, while mass-flowering crop area was not significant.",
@@ -106,6 +128,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "1",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Overall, implementing biodiversity measures had a significant positive effect on the number of modelled bumblebee colonies.",
@@ -124,6 +147,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "6",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Nesting-habitat area had a stronger positive effect than pollen in the Bavarian landscape, but no effect in the other two study areas.",
@@ -142,6 +166,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "7",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Nesting habitat may become limiting when no more than about 5% of the landscape is suitable for nesting, making nesting-providing measures potentially stronger than food-only measures.",
@@ -160,6 +185,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "8",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "In conclusion, biodiversity measures that provide food and nesting habitats positively affect bumblebee-colony development at landscape level.",
@@ -181,18 +207,19 @@
       "claims": [
         {
           "claim_id": "CLM-BadenBohm_2023-0024",
-          "score": 0.8333,
+          "score": 0.75,
           "source_id": "BadenBohm_2023",
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "7",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "The landscape with the highest semi-natural habitat proportion had the highest colony numbers but the weakest biodiversity-measure effect, while the landscape with the lowest semi-natural habitat share had the lowest colony density and strongest measure effect.",
           "why_retrieved": [
             "token_overlap"
           ],
-          "evidence": "Our results corroborate the hypothesis that effectiveness of biodiversity measures varies among agricultural landscapes with different landscape composition and configuration. The study area with the highest proportion of semi-natural habitat (Havelland, 8.8%) showed the highest number of bumblebee colonies and, at the same time, the least effect of biodiversity measures. In contrast, the study area with the lowest area of semi-natural habitats (Rhine Hesse, 3.0%) had the lowest density of bumblebee colonies throughout, but showed the strongest effect of biodiversity measures, while the landscape with intermediate proportion of semi-natural habitats (Lower Bavaria, 5.4%) showed intermediate effect size in terms of effect estimates from GLS on log scale.",
+          "evidence": "In contrast, the study area with the lowest area of semi-natural habitats (Rhine Hesse, 3.0%) had the lowest density of bumblebee colonies throughout, but showed the strongest effect of biodiversity measures, while the landscape with intermediate proportion of semi-natural habitats (Lower Bavaria, 5.4%) showed intermediate effect size in terms of effect estimates from GLS on log scale. The study area with the highest proportion of semi-natural habitat (Havelland, 8.8%) showed the highest number of bumblebee colonies and, at the same time, the least effect of biodiversity measures.",
           "scope_note": "Directly supports landscape-context targeting of measures.",
           "line_start": 189,
           "line_end": 189
@@ -204,6 +231,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "8",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "The authors conclude that landscape composition modifies biodiversity-measure effects and that semi-natural habitat area positively affects B. terrestris colony density.",
@@ -222,6 +250,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "1",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Mass-flowering crops had little to no significant effect on colony numbers, whereas semi-natural habitats had a markedly positive effect.",
@@ -240,6 +269,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "6",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Semi-natural habitat area had a stronger positive effect on bumblebee colony numbers than biodiversity-measure area, while mass-flowering crop area was not significant.",
@@ -258,6 +288,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "1",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "policy implication",
           "claim_representation": "paraphrase",
           "claim": "The authors argue that biodiversity-measure effectiveness should be interpreted in relation to overall landscape composition, especially semi-natural habitat proportion.",
@@ -276,6 +307,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "5",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "In Havelland, biodiversity measures providing food increased colony numbers significantly relative to BAU, but additional nesting habitat had no effect.",
@@ -294,6 +326,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "7",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "The study found a stronger effect of semi-natural habitats, mainly field margins and hedges, than of the investigated biodiversity measures.",
@@ -312,6 +345,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "1",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "empirical finding",
           "claim_representation": "paraphrase",
           "claim": "Overall, implementing biodiversity measures had a significant positive effect on the number of modelled bumblebee colonies.",
@@ -338,6 +372,7 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "8",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "limitation",
           "claim_representation": "paraphrase",
           "claim": "A limitation is that grassland and forest were not defined as food or nesting habitats because management data were lacking, likely underrating their importance for bumblebees.",
@@ -356,13 +391,14 @@
           "citation_hint": "Baden-Böhm; Dauber; Thiele (2023)",
           "page": "8",
           "status": "candidate_needs_review",
+          "evidence_grade": "C",
           "claim_type": "limitation",
           "claim_representation": "paraphrase",
           "claim": "A limitation is that plant phenology was held constant in the models despite annual weather-driven variation, and changes in plant species composition/richness over years were not considered.",
           "why_retrieved": [
             "token_overlap"
           ],
-          "evidence": "In reality, the phenology of plants is subject to annual variation depending on the weather patterns, but in the models, it is held constant in every year. Furthermore, changes in plant species composition, richness of flowering species over the years ([Frank et al., 2012](#ref-017); [Tscharntke et al., 2011](#ref-062)) or life span could not be considered in our study.",
+          "evidence": "In reality, the phenology of plants is subject to annual variation depending on the weather patterns, but in the models, it is held constant in every year. Furthermore, changes in plant species composition, richness of flowering species over the years ([Frank et al., 2012]( ); [Tscharntke et al., 2011]( )) or life span could not be considered in our study.",
           "scope_note": "Important for evaluating realism of modelled food-resource dynamics.",
           "line_start": 225,
           "line_end": 225

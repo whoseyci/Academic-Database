@@ -63,6 +63,23 @@ def infer_topic(claim, tags):
     return claim.get("claim_type") or "unknown"
 
 
+def evidence_grade(claim):
+    status = claim.get("verification_status") or ""
+    if status in {"rejected", "superseded"}:
+        return "X"
+    rep = claim.get("claim_representation") or ""
+    page_status = claim.get("page_status") or ""
+    has_offsets = claim.get("char_start") is not None and claim.get("char_end") is not None
+    page_ok = bool(claim.get("page")) and page_status not in {"needs_page_check", ""}
+    if status == "verified" and page_ok and rep in {"source_quote", "lightly_normalized_source", "source_range"}:
+        return "A"
+    if status == "verified" or (has_offsets and page_ok and rep in {"source_quote", "lightly_normalized_source", "source_range"}):
+        return "B"
+    if has_offsets or claim.get("page") or rep == "paraphrase":
+        return "C"
+    return "D"
+
+
 def main():
     DOCS.mkdir(exist_ok=True)
     DATA.mkdir(parents=True, exist_ok=True)
@@ -73,6 +90,7 @@ def main():
     source_by_id = {s["source_id"]: s for s in sources}
     claims = [dict(r) for r in conn.execute("SELECT * FROM claims ORDER BY source_id, claim_id")]
     tag_rows = [dict(r) for r in conn.execute("SELECT claim_id, tag_type, tag FROM claim_tags ORDER BY claim_id, tag_type, tag")]
+    relation_rows = [dict(r) for r in conn.execute("SELECT * FROM claim_relations ORDER BY created_at DESC")]
     tags_by_claim = defaultdict(list)
     for t in tag_rows:
         tags_by_claim[t["claim_id"]].append({"tag_type": t["tag_type"], "tag": t["tag"]})
@@ -107,6 +125,7 @@ def main():
             "page": c.get("page", ""),
             "page_status": c.get("page_status", ""),
             "verification_status": c.get("verification_status", ""),
+            "evidence_grade": evidence_grade(c),
             "confidence": c.get("confidence", ""),
             "scope_note": c.get("scope_note", ""),
             "line_start": c.get("line_start"),
@@ -126,6 +145,7 @@ def main():
         "topic_counts": Counter(c["topic"] for c in claim_cards),
         "year_counts": Counter(str(s.get("year", "")) for s in sources if s.get("year")),
         "representation_counts": Counter(c["claim_representation"] for c in claim_cards),
+        "evidence_grade_counts": Counter(c["evidence_grade"] for c in claim_cards),
     }
     stats = {k: dict(v) if isinstance(v, Counter) else v for k, v in stats.items()}
 
@@ -161,7 +181,7 @@ def main():
 
     for c in claim_cards:
         cid = f"claim:{c['claim_id']}"
-        add_node(cid, c["claim_id"], "claim", topic=c["topic"], status=c["verification_status"], claim_type=c["claim_type"])
+        add_node(cid, c["claim_id"], "claim", topic=c["topic"], status=c["verification_status"], evidence_grade=c["evidence_grade"], claim_type=c["claim_type"])
         add_edge(f"source:{c['source_id']}", cid, "has_claim", 1)
         topic_id = f"topic:{c['topic'].lower()}"
         add_node(topic_id, c["topic"], "topic")
@@ -174,6 +194,12 @@ def main():
                 nid = f"{t['tag_type']}:{t['tag'].lower()}"
                 add_node(nid, t["tag"], t["tag_type"])
                 add_edge(cid, nid, f"tag:{t['tag_type']}", 1)
+
+    # Explicit claim relations / tension-map edges.
+    for rel in relation_rows:
+        a = f"claim:{rel.get('claim_a')}"
+        b = f"claim:{rel.get('claim_b')}"
+        add_edge(a, b, rel.get("relation_type") or "related", 3)
 
     # Paper-paper similarity by shared topic/tag metadata.
     source_topics = defaultdict(set)
@@ -207,6 +233,7 @@ def main():
         "sources": sources,
         "claims": claim_cards,
         "stats": stats,
+        "relations": relation_rows,
         "network": {"nodes": nodes, "edges": edges, "paper_edges": paper_edges},
         "chapter_briefs": briefs,
     }

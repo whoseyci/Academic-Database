@@ -4,8 +4,14 @@
   "purpose": "Provide an LLM or human writer with source-backed claims for discussing behavioural determinants of participation and design modifications for CAP eco-schemes. This profile is thesis-specific, but illustrates the generic chapter-brief mechanism.",
   "minimum_source_diversity": 1,
   "global_filters": {
-    "source_ids": ["Canessa_2024"],
-    "statuses": ["verified", "candidate_needs_review", "needs_page_check"]
+    "source_ids": [
+      "Canessa_2024"
+    ],
+    "statuses": [
+      "verified",
+      "candidate_needs_review",
+      "needs_page_check"
+    ]
   },
   "writing_contract": [
     "Use only claims in this brief unless you explicitly retrieve more evidence.",
@@ -23,7 +29,10 @@
       "queries": [
         "trust policy stability social norms previous participation information pro-environmental attitudes adoption AECM farmers"
       ],
-      "claim_types": ["empirical finding", "theoretical claim"],
+      "claim_types": [
+        "empirical finding",
+        "theoretical claim"
+      ],
       "limit": 8
     },
     {
@@ -33,7 +42,11 @@
       "queries": [
         "contract design flexibility bureaucratic simplification transaction costs payment compensation opportunity costs participation"
       ],
-      "claim_types": ["empirical finding", "policy implication", "theoretical claim"],
+      "claim_types": [
+        "empirical finding",
+        "policy implication",
+        "theoretical claim"
+      ],
       "limit": 8
     },
     {
@@ -43,7 +56,11 @@
       "queries": [
         "additionality self-selection baseline complying farmers alignment participation effectiveness action based AECM"
       ],
-      "claim_types": ["empirical finding", "theoretical claim", "policy implication"],
+      "claim_types": [
+        "empirical finding",
+        "theoretical claim",
+        "policy implication"
+      ],
       "limit": 6
     },
     {
@@ -53,8 +70,31 @@
       "queries": [
         "undermeasured social context contract design engagement transaction cost standardized behavioural indicators research gaps"
       ],
-      "claim_types": ["limitation", "methodological claim", "policy implication", "theoretical claim"],
+      "claim_types": [
+        "limitation",
+        "methodological claim",
+        "policy implication",
+        "theoretical claim"
+      ],
       "limit": 6
     }
+  ],
+  "research_questions": [
+    "chapter-specific evidence synthesis"
+  ],
+  "allowed_statuses": [
+    "verified",
+    "candidate_needs_review",
+    "needs_page_check"
+  ],
+  "required_topics": [
+    "institutional trust",
+    "contract design",
+    "additionality",
+    "administrative burden"
+  ],
+  "avoid": [
+    "Do not use candidate or page-check claims as final publication evidence without review.",
+    "Do not generalize beyond the source geography, methodology or study organism/case."
   ]
 }
