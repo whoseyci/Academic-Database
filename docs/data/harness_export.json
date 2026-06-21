@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-20T10:52:24Z",
+  "generated_at": "2026-06-21T14:37:34Z",
   "notes": "Static export. Full source texts are intentionally not included; only metadata, claims, evidence excerpts and bounded context snippets are exported.",
   "sources": [
     {
@@ -41,6 +41,26 @@
       "line_count": 814,
       "created_at": "2026-06-20T09:01:50Z",
       "updated_at": "2026-06-20T09:01:50Z"
+    },
+    {
+      "source_id": "CuadrosCasanova_2022",
+      "title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "authors": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "source_type": "peer-reviewed article",
+      "disciplines": "conservation biology; environmental policy; agricultural policy; sustainability science",
+      "geography": "European Union",
+      "methodology": "literature review; policy analysis",
+      "theory": "European Green Deal; Common Agricultural Policy; biodiversity strategy; farm to fork strategy",
+      "quality": "high",
+      "notes": "CAP 2023-2027 reform alignment with European Green Deal; relevant for eco-scheme design, environmental ambition, monitoring and policy coherence.",
+      "blob_path": "blobs/CuadrosCasanova_2022_c54201fd39ac.md.gz",
+      "source_hash": "c54201fd39ac48d370540656dab5b2697274b6114b95816e62b8d82f24db1b38",
+      "char_count": 52454,
+      "line_count": 264,
+      "created_at": "2026-06-21T14:36:02Z",
+      "updated_at": "2026-06-21T14:36:02Z"
     }
   ],
   "claims": [
@@ -4783,22 +4803,1237 @@
       ],
       "tag_text": "construct:contract design construct:information construct:subjective norms discipline:agricultural economics discipline:environmental policy discipline:land use policy geography:Europe methodology:logit/probit synthesis methodology:systematic review methodology:vote-count analysis rq:RQ2 rq:RQ3",
       "context_snippet": "ch on AECM adoption. To enhance our understanding of factors influencing decision-making, we systematically analysed stage-specific constructs, grouped into ‘alignment’, ‘opportunity’, ‘engagement’, and ‘contracting’, in relation to farmer’s adoption decisions. All the proposed constructs appeared to be valuable for explaining participation, i.e., all four dimensions should be considered when designing a new measure and monitoring its uptake.\n\n==Variables reflecting the role of information and interpersonal communication, as well as farmers’ satisfaction with the AECM design, were more frequently significant and positively linked to adoption==, even though this was observed in a smaller number of studies. This suggests that, ==independently from alignment and perceived opportunity, AECM implementers should pay adequate attention to engagement requirements and elements of contract design.== [PAGE UNVERIFIED] [Conclusion-level synthesis: engagement and contract design as highest-yield intervention points; directly supports §6 policy recommendations for RQ3 and frames informational PBC"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0001",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The CAP intends to align with the European Green Deal (EGD), a set of policy initiatives underpinning sustainable development and climate neutrality in the European Union (EU), but several flaws cast doubts about the compatibility of the objectives of these 2 policies.",
+      "evidence": "The CAP intends to align with the European Green Deal (EGD), a set of policy initiatives underpinning sustainable development and climate neutrality in the European Union (EU), but several flaws cast doubts about the compatibility of the objectives of these 2 policies.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "1",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: Abstract. Requires review.",
+      "line_start": 13,
+      "line_end": 13,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "policy design"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:climate mitigation construct:policy design",
+      "context_snippet": "upport the European Green Deal\n\n*Ivon Cuadros-Casanova, Andrea Cristiano, Dino Biancolini, Marta Cimatti, Andrea Antonio Sessa, Valeria Yeraldin Mendez Angarita, Chiara Dragonetti, Carlo Rondinini, Moreno Di Marco*\n\n2022 · DOI: [10.1111/cobi.14052](https://doi.org/10.1111/cobi.14052)\n\n---\n\n## Abstract\n\nThe Common Agricultural Policy (CAP) is the European Union’s main instrument for agricultural planning, with a new reform approved for 2023–2027. The CAP intends to align with the European Green Deal (EGD), a set of policy initiatives underpinning sustainable development and climate neutrality in the European Union (EU), but several flaws cast doubts about the compatibility of the objectives of these 2 policies. We reviewed recent literature on the potential of CAP environmental objectives for integration with the EGD: protection of biodiversity, climate change mitigation and adaptation, and sustainable management of natural resources. The CAP lacks appropriate planning measures, furthering instead risks to biodiversity and ecosystem services driven by landscape and biotic homogenization. Funding allocation mechanisms are not tailored to mitigate agricu"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0002",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "We reviewed recent literature on the potential of CAP environmental objectives for integration with the EGD: protection of biodiversity, climate change mitigation and adaptation, and sustainable management of natural resources.",
+      "evidence": "We reviewed recent literature on the potential of CAP environmental objectives for integration with the EGD: protection of biodiversity, climate change mitigation and adaptation, and sustainable management of natural resources.",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "1",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: Abstract. Requires review.",
+      "line_start": 13,
+      "line_end": 13,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:biodiversity construct:climate mitigation",
+      "context_snippet": "11/cobi.14052)\n\n---\n\n## Abstract\n\nThe Common Agricultural Policy (CAP) is the European Union’s main instrument for agricultural planning, with a new reform approved for 2023–2027. The CAP intends to align with the European Green Deal (EGD), a set of policy initiatives underpinning sustainable development and climate neutrality in the European Union (EU), but several flaws cast doubts about the compatibility of the objectives of these 2 policies. We reviewed recent literature on the potential of CAP environmental objectives for integration with the EGD: protection of biodiversity, climate change mitigation and adaptation, and sustainable management of natural resources. The CAP lacks appropriate planning measures, furthering instead risks to biodiversity and ecosystem services driven by landscape and biotic homogenization. Funding allocation mechanisms are not tailored to mitigate agricultural emissions, decreasing the efficiency of climate mitigation actions. The legislation subsidies farmers making extensive use of synthetic inputs without adequately supporting organic production, hindering the transition tow"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0003",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The CAP lacks appropriate planning measures, furthering instead risks to biodiversity and ecosystem services driven by landscape and biotic homogenization.",
+      "evidence": "The CAP lacks appropriate planning measures, furthering instead risks to biodiversity and ecosystem services driven by landscape and biotic homogenization.",
+      "claim_representation": "source_range",
+      "claim_type": "limitation",
+      "page": "1",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: Abstract. Requires review.",
+      "line_start": 13,
+      "line_end": 13,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        }
+      ],
+      "tag_text": "construct:CAP construct:biodiversity",
+      "context_snippet": " Deal (EGD), a set of policy initiatives underpinning sustainable development and climate neutrality in the European Union (EU), but several flaws cast doubts about the compatibility of the objectives of these 2 policies. We reviewed recent literature on the potential of CAP environmental objectives for integration with the EGD: protection of biodiversity, climate change mitigation and adaptation, and sustainable management of natural resources. The CAP lacks appropriate planning measures, furthering instead risks to biodiversity and ecosystem services driven by landscape and biotic homogenization. Funding allocation mechanisms are not tailored to mitigate agricultural emissions, decreasing the efficiency of climate mitigation actions. The legislation subsidies farmers making extensive use of synthetic inputs without adequately supporting organic production, hindering the transition toward sustainable practices. We recommend proper control mechanisms be introduced in CAP Strategic Plans from each member state to ensure the EU is set on a s"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0004",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Funding allocation mechanisms are not tailored to mitigate agricultural emissions, decreasing the efficiency of climate mitigation actions.",
+      "evidence": "Funding allocation mechanisms are not tailored to mitigate agricultural emissions, decreasing the efficiency of climate mitigation actions.",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "1",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: Abstract. Requires review.",
+      "line_start": 13,
+      "line_end": 13,
+      "topic": "climate mitigation",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        }
+      ],
+      "tag_text": "construct:climate mitigation construct:funding allocation",
+      "context_snippet": "ts about the compatibility of the objectives of these 2 policies. We reviewed recent literature on the potential of CAP environmental objectives for integration with the EGD: protection of biodiversity, climate change mitigation and adaptation, and sustainable management of natural resources. The CAP lacks appropriate planning measures, furthering instead risks to biodiversity and ecosystem services driven by landscape and biotic homogenization. Funding allocation mechanisms are not tailored to mitigate agricultural emissions, decreasing the efficiency of climate mitigation actions. The legislation subsidies farmers making extensive use of synthetic inputs without adequately supporting organic production, hindering the transition toward sustainable practices. We recommend proper control mechanisms be introduced in CAP Strategic Plans from each member state to ensure the EU is set on a sustainable production and consumption path. These include proportional assignment of funds to each CAP objective, quantitative targets to se"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0005",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "These include proportional assignment of funds to each CAP objective, quantitative targets to set goals and evidence-based interventions, and relevant indicators to facilitate effective monitoring of environmental performance.",
+      "evidence": "These include proportional assignment of funds to each CAP objective, quantitative targets to set goals and evidence-based interventions, and relevant indicators to facilitate effective monitoring of environmental performance.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "1",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: Abstract. Requires review.",
+      "line_start": 13,
+      "line_end": 13,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "policy design"
+        }
+      ],
+      "tag_text": "construct:CAP construct:funding allocation construct:monitoring and indicators construct:policy design",
+      "context_snippet": "red to mitigate agricultural emissions, decreasing the efficiency of climate mitigation actions. The legislation subsidies farmers making extensive use of synthetic inputs without adequately supporting organic production, hindering the transition toward sustainable practices. We recommend proper control mechanisms be introduced in CAP Strategic Plans from each member state to ensure the EU is set on a sustainable production and consumption path. These include proportional assignment of funds to each CAP objective, quantitative targets to set goals and evidence-based interventions, and relevant indicators to facilitate effective monitoring of environmental performance. Both the CAP and the EGD should maintain ambitious environmental commitments in the face of crisis to avoid further degradation of the natural resources on which production systems stand.\n\n**Keywords:** biodiversity conservation, climate change, Common Agricultural Policy, environmental policy, European Green Deal, farm to fork strategy, food production, sustainable agriculture\n\nbiodiversity conservation, climate change, Common Agricultural Poli"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0006",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Both the CAP and the EGD should maintain ambitious environmental commitments in the face of crisis to avoid further degradation of the natural resources on which production systems stand.",
+      "evidence": "Both the CAP and the EGD should maintain ambitious environmental commitments in the face of crisis to avoid further degradation of the natural resources on which production systems stand.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "1",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: Abstract. Requires review.",
+      "line_start": 13,
+      "line_end": 13,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal",
+      "context_snippet": "ring the transition toward sustainable practices. We recommend proper control mechanisms be introduced in CAP Strategic Plans from each member state to ensure the EU is set on a sustainable production and consumption path. These include proportional assignment of funds to each CAP objective, quantitative targets to set goals and evidence-based interventions, and relevant indicators to facilitate effective monitoring of environmental performance. Both the CAP and the EGD should maintain ambitious environmental commitments in the face of crisis to avoid further degradation of the natural resources on which production systems stand.\n\n**Keywords:** biodiversity conservation, climate change, Common Agricultural Policy, environmental policy, European Green Deal, farm to fork strategy, food production, sustainable agriculture\n\nbiodiversity conservation, climate change, Common Agricultural Policy, environmental policy, European Green Deal, farm to fork strategy, food production, sustainable agriculture \n\n## Oportunidades y retos para la reforma a la Política Agrícola Común que r"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0007",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "In the 2018 reform (2021-2027 financial period), the European Commission drafted the first proposal with 3 specific objectives that were subsequently incorporated, confirming new overall performance goals: contribute to the protection of biodiversity, enhance ecosystem services, and preserve habitats and landscapes; contribute to climate change mitigation and adaptation and sustainable energy; and foster sustainable development and efficient management of natural resources, such as water, soil, and air.",
+      "evidence": "In the 2018 reform (2021-2027 financial period), the European Commission drafted the first proposal with 3 specific objectives that were subsequently incorporated, confirming new overall performance goals: contribute to the protection of biodiversity, enhance ecosystem services, and preserve habitats and landscapes; contribute to climate change mitigation and adaptation and sustainable energy; and foster sustainable development and efficient management of natural resources, such as water, soil, and air.",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "3",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: INTRODUCTION. Requires review.",
+      "line_start": 61,
+      "line_end": 61,
+      "topic": "biodiversity",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        }
+      ],
+      "tag_text": "construct:biodiversity construct:climate mitigation construct:natural resources",
+      "context_snippet": "European Parliament, 2020). Recognizing the role of agriculture as a primary producer of public goods and responding to social demands to protect them, a new focus on innovation, climate change, and the environment has been pursued since the 2013 CAP reform (2014-2020 financial period), when green direct payments including economic incentives for crop diversification or the maintenance of permanent grasslands for environmental goods were agreed. In the 2018 reform (2021-2027 financial period), the European Commission drafted the first proposal with 3 specific objectives that were subsequently incorporated, confirming new overall performance goals: contribute to the protection of biodiversity, enhance ecosystem services, and preserve habitats and landscapes; contribute to climate change mitigation and adaptation and sustainable energy; and foster sustainable development and efficient management of natural resources, such as water, soil, and air. \n\nThese objectives acknowledge the role of the CAP in preventing further environmental degradation that past reforms failed to address, hindering the transition to agricultural sustainability ([Pe'er et al., 2019](#ref-041)). For example, over 70% of the CAP budget goes to direct payments under Pillar I, which grant farmers income support based on the number of hectares farmed. However, it has been demonstrated that past payments favored mostly i"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0008",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "In contrast with the EGD commitment to restore degraded ecosystems and farmland biodiversity, previous CAP regulations that contributed to the intensification of European agriculture through production-oriented mechanisms, such as payments per hectare and number of livestock heads ([Emmerson et al., 2016](#ref-008); [Pe'er et al., 2017](#ref-039)), remain unchanged in the current reform.",
+      "evidence": "In contrast with the EGD commitment to restore degraded ecosystems and farmland biodiversity, previous CAP regulations that contributed to the intensification of European agriculture through production-oriented mechanisms, such as payments per hectare and number of livestock heads ([Emmerson et al., 2016](#ref-008); [Pe'er et al., 2017](#ref-039)), remain unchanged in the current reform.",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "3",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 75,
+      "line_end": 75,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:biodiversity construct:funding allocation",
+      "context_snippet": "sity strategy for 2030, with objectives and commitments to enable transformative changes to benefit both nature and people (Table 1). In accordance with those provisions, CAP objective 6 aims to protect biodiversity and its derived ecosystem services. Yet, several concerns exist about how the CAP mechanisms can support achievement of the EGD objectives of protecting natural landscapes and species, envisioned under the EU Biodiversity Strategy. \n\nIn contrast with the EGD commitment to restore degraded ecosystems and farmland biodiversity, previous CAP regulations that contributed to the intensification of European agriculture through production-oriented mechanisms, such as payments per hectare and number of livestock heads ([Emmerson et al., 2016](#ref-008); [Pe'er et al., 2017](#ref-039)), remain unchanged in the current reform. Although economically beneficial for some, the \n\n---\n\n*— Page 4 of 13 —*\n\n*— Page 5 of 13 —*\n\n**5 of 13** \n\n![Figure 4 (page 5)](./figures/fig-004.png)\n\nwidespread adoption of such policies had detrimental unintended effects on farmland biodiversity. The continuation of these practices may hinder the environmental ambitions of both the CAP and the EGD ([Scown et al., 2020](#ref-044)). For example, payments based on farmland size resulted in majo"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0009",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The continuation of these practices may hinder the environmental ambitions of both the CAP and the EGD ([Scown et al., 2020](#ref-044)).",
+      "evidence": "The continuation of these practices may hinder the environmental ambitions of both the CAP and the EGD ([Scown et al., 2020](#ref-044)).",
+      "claim_representation": "source_range",
+      "claim_type": "limitation",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 87,
+      "line_end": 87,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:biodiversity",
+      "context_snippet": "roduction-oriented mechanisms, such as payments per hectare and number of livestock heads ([Emmerson et al., 2016](#ref-008); [Pe'er et al., 2017](#ref-039)), remain unchanged in the current reform. Although economically beneficial for some, the \n\n---\n\n*— Page 4 of 13 —*\n\n*— Page 5 of 13 —*\n\n**5 of 13** \n\n![Figure 4 (page 5)](./figures/fig-004.png)\n\nwidespread adoption of such policies had detrimental unintended effects on farmland biodiversity. The continuation of these practices may hinder the environmental ambitions of both the CAP and the EGD ([Scown et al., 2020](#ref-044)). For example, payments based on farmland size resulted in major economic revenues to bigger farms, incentivizing increased field size, whereas incentives to grow mainly crops that are eligible for economic support increased production of a few selected varieties. These approaches resulted in the homogenization of large areas of cropland that negatively affected biodiversity through different mechanisms, both directly and indirectly. \n\nThe reducti"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0010",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The reduction of landscape features, such as hedges, trees, and wetland areas, led to a decrease in permanent refuges for species that rely on these features, thereby depleting reservoirs of biodiversity in farm landscapes.",
+      "evidence": "The reduction of landscape features, such as hedges, trees, and wetland areas, led to a decrease in permanent refuges for species that rely on these features, thereby depleting reservoirs of biodiversity in farm landscapes.",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 89,
+      "line_end": 89,
+      "topic": "biodiversity",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        }
+      ],
+      "tag_text": "construct:biodiversity",
+      "context_snippet": "#ref-044)). For example, payments based on farmland size resulted in major economic revenues to bigger farms, incentivizing increased field size, whereas incentives to grow mainly crops that are eligible for economic support increased production of a few selected varieties. These approaches resulted in the homogenization of large areas of cropland that negatively affected biodiversity through different mechanisms, both directly and indirectly. \n\nThe reduction of landscape features, such as hedges, trees, and wetland areas, led to a decrease in permanent refuges for species that rely on these features, thereby depleting reservoirs of biodiversity in farm landscapes. The larger the fields, the fewer the number of different crop types subsisting in the landscape, which further aggravated landscape homogenization and biodiversity loss ([Lefebvre et al., 2012](#ref-030)). Landscape homogenization acts as a facilitator of invasive species due to simplified ecological communities ([Gamez-Virués et al., 2015](#ref-022)) and leads to the loss of beneficial species, such as wild pollinators and natural pest control "
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0011",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "With the goal of improving on-farm biodiversity, GAEC 8 of CAP requires that at least 4% of arable land be set aside for nonproductive features; this amount is notably short of the relevant EGD goals (Table 1).",
+      "evidence": "With the goal of improving on-farm biodiversity, GAEC 8 of CAP requires that at least 4% of arable land be set aside for nonproductive features; this amount is notably short of the relevant EGD goals (Table 1).",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 91,
+      "line_end": 91,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:biodiversity",
+      "context_snippet": "ndscapes to deliver ecosystem services calls for the protection and restoration of native species within these landscapes ([Garibaldi et al., 2019](#ref-023)). Accordingly, the EGD proposes a return of at least 10% of Europe's agricultural area to lands with high-diversity landscape features, and CAP recognized the ecological relevance of certain agricultural systems to maintain biodiversity and deliver ecosystem services beyond food production. With the goal of improving on-farm biodiversity, GAEC 8 of CAP requires that at least 4% of arable land be set aside for nonproductive features; this amount is notably short of the relevant EGD goals (Table 1). The CAP also integrated an indicator to measure the area under commitments that support conservation and restoration, including high-nature-value (HNV) farmlands (result indicator R.31[PR] ). The HNV farmlands consist of production systems characterized by low-intensity agricultural practices, remarkably high biodiversity values, and large ecosystem services provision, including water and soil protection, carbon storage, and fire and climate cha"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0012",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Despite their ecological value, HNV farmlands are threatened by agricultural intensification ([Keenleyside et al., 2014](#ref-028)), and their delineation remains unclear; thus, their practical prioritization remains a problem that is unaddressed by the CAP ([Navarro & López-Bao, 2018](#ref-034)).",
+      "evidence": "Despite their ecological value, HNV farmlands are threatened by agricultural intensification ([Keenleyside et al., 2014](#ref-028)), and their delineation remains unclear; thus, their practical prioritization remains a problem that is unaddressed by the CAP ([Navarro & López-Bao, 2018](#ref-034)).",
+      "claim_representation": "source_range",
+      "claim_type": "limitation",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 91,
+      "line_end": 91,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        }
+      ],
+      "tag_text": "construct:CAP construct:biodiversity",
+      "context_snippet": "tegrated an indicator to measure the area under commitments that support conservation and restoration, including high-nature-value (HNV) farmlands (result indicator R.31[PR] ). The HNV farmlands consist of production systems characterized by low-intensity agricultural practices, remarkably high biodiversity values, and large ecosystem services provision, including water and soil protection, carbon storage, and fire and climate change mitigation. Despite their ecological value, HNV farmlands are threatened by agricultural intensification ([Keenleyside et al., 2014](#ref-028)), and their delineation remains unclear; thus, their practical prioritization remains a problem that is unaddressed by the CAP ([Navarro & López-Bao, 2018](#ref-034)). The latest reform did not allocate specific targets to define and increase HNV farmlands or provide specific income support to make them economically viable (Alliance Environment, 2019). \n\nBiodiversity and ecosystem service provision of HNV farmlands helps meet growing demands for multifunctional agricultural landscapes; thus, clear criteria to identify them should be devised and member states should prioritize their maintenance and expansion an"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0013",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Biodiversity and ecosystem service provision of HNV farmlands helps meet growing demands for multifunctional agricultural landscapes; thus, clear criteria to identify them should be devised and member states should prioritize their maintenance and expansion and monitoring of their biodiversity state.",
+      "evidence": "Biodiversity and ecosystem service provision of HNV farmlands helps meet growing demands for multifunctional agricultural landscapes; thus, clear criteria to identify them should be devised and member states should prioritize their maintenance and expansion and monitoring of their biodiversity state.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 93,
+      "line_end": 93,
+      "topic": "biodiversity",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        }
+      ],
+      "tag_text": "construct:biodiversity construct:monitoring and indicators",
+      "context_snippet": "rmlands are threatened by agricultural intensification ([Keenleyside et al., 2014](#ref-028)), and their delineation remains unclear; thus, their practical prioritization remains a problem that is unaddressed by the CAP ([Navarro & López-Bao, 2018](#ref-034)). The latest reform did not allocate specific targets to define and increase HNV farmlands or provide specific income support to make them economically viable (Alliance Environment, 2019). \n\nBiodiversity and ecosystem service provision of HNV farmlands helps meet growing demands for multifunctional agricultural landscapes; thus, clear criteria to identify them should be devised and member states should prioritize their maintenance and expansion and monitoring of their biodiversity state. \n\nBecause both the EGD and the CAP aim to protect biodiversity-rich landscapes, appropriate indicators are crucial to establishing effective monitoring programs that identify and measure the state of farmland biodiversity and address biodiversity threats. Indicators should thus provide the baseline to quantify progress toward achievement of CAP and EGD biodiversity objectives. Yet, CAP indicators fail to address the complexity of farmland biodive"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0014",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Because both the EGD and the CAP aim to protect biodiversity-rich landscapes, appropriate indicators are crucial to establishing effective monitoring programs that identify and measure the state of farmland biodiversity and address biodiversity threats.",
+      "evidence": "Because both the EGD and the CAP aim to protect biodiversity-rich landscapes, appropriate indicators are crucial to establishing effective monitoring programs that identify and measure the state of farmland biodiversity and address biodiversity threats.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 95,
+      "line_end": 95,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:biodiversity construct:monitoring and indicators",
+      "context_snippet": " targets to define and increase HNV farmlands or provide specific income support to make them economically viable (Alliance Environment, 2019). \n\nBiodiversity and ecosystem service provision of HNV farmlands helps meet growing demands for multifunctional agricultural landscapes; thus, clear criteria to identify them should be devised and member states should prioritize their maintenance and expansion and monitoring of their biodiversity state. \n\nBecause both the EGD and the CAP aim to protect biodiversity-rich landscapes, appropriate indicators are crucial to establishing effective monitoring programs that identify and measure the state of farmland biodiversity and address biodiversity threats. Indicators should thus provide the baseline to quantify progress toward achievement of CAP and EGD biodiversity objectives. Yet, CAP indicators fail to address the complexity of farmland biodiversity and how it is affected by agricultural activities. \n\nTwo context indicators were adopted to measure trends in species populations: the farmland bird index (I.19), which measures changes in the relative abundance of common bird species, and enhancing"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0015",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Indicators should thus provide the baseline to quantify progress toward achievement of CAP and EGD biodiversity objectives.",
+      "evidence": "Indicators should thus provide the baseline to quantify progress toward achievement of CAP and EGD biodiversity objectives.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 95,
+      "line_end": 95,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:biodiversity construct:monitoring and indicators",
+      "context_snippet": " agricultural landscapes; thus, clear criteria to identify them should be devised and member states should prioritize their maintenance and expansion and monitoring of their biodiversity state. \n\nBecause both the EGD and the CAP aim to protect biodiversity-rich landscapes, appropriate indicators are crucial to establishing effective monitoring programs that identify and measure the state of farmland biodiversity and address biodiversity threats. Indicators should thus provide the baseline to quantify progress toward achievement of CAP and EGD biodiversity objectives. Yet, CAP indicators fail to address the complexity of farmland biodiversity and how it is affected by agricultural activities. \n\nTwo context indicators were adopted to measure trends in species populations: the farmland bird index (I.19), which measures changes in the relative abundance of common bird species, and enhancing biodiversity protection (I.20), which measures the percentage of species and habitats of community interest related to agri"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0016",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The CAP biodiversity assessments should aim to evaluate species' population trends, measure the impact of specific interventions, and identify threats in a timely manner.",
+      "evidence": "The CAP biodiversity assessments should aim to evaluate species' population trends, measure the impact of specific interventions, and identify threats in a timely manner.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "5",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: PROTECTION OF BIODIVERSITY. Requires review.",
+      "line_start": 97,
+      "line_end": 97,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "policy design"
+        }
+      ],
+      "tag_text": "construct:CAP construct:biodiversity construct:monitoring and indicators construct:policy design",
+      "context_snippet": "dered (European Court of Auditors, 2020a). The implementation of additional indicators, such as the European Grassland Butterfly Indicator, has been repeatedly suggested due to its well-established monitoring program, but was never considered ([Pe'er et al., 2020](#ref-037)). Because data collection depends mostly on different programs unrelated to the CAP, associating biodiversity trends with specific agricultural practices remains challenging. The CAP biodiversity assessments should aim to evaluate species' population trends, measure the impact of specific interventions, and identify threats in a timely manner. A monitoring framework tailored to measure the effects of agriculture and food production systems on biodiversity would enable faster decisionmaking to further timely actions and reverse negative trends (Table 2). \n\n## **CLIMATE CHANGE MITIGATION AND ADAPTATION** \n\nTo tackle the pressing challenge of climate change, the European Commission enacted the Climate Law and the 2030 Climate Target Plan as part of the EGD strategies. Their main objectiv"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0017",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "However, the feasibility of these practices is not addressed by the CAP reform, which lacks specific targets and pathways for GHG reduction.",
+      "evidence": "However, the feasibility of these practices is not addressed by the CAP reform, which lacks specific targets and pathways for GHG reduction.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "7",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: CLIMATE CHANGE MITIGATION AND ADAPTATION. Requires review.",
+      "line_start": 121,
+      "line_end": 121,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        }
+      ],
+      "tag_text": "construct:CAP construct:climate mitigation construct:monitoring and indicators",
+      "context_snippet": "ng emissions from agriculture is subsequently one of the overarching principles of the CAP (objective 4) (Table 3). \n\nWithin the CAP, several farming practices have been listed as potential strategies to reduce emissions, including the conversion of arable land to grassland (when soil is not managed for intensive livestock), tillage reduction, agroforestry practices, and wetlands conservation and restoration ([Martineau et al., 2016](#ref-031)). However, the feasibility of these practices is not addressed by the CAP reform, which lacks specific targets and pathways for GHG reduction. Animal production systems and synthetic agricultural inputs are the major causes of agricultural emissions, but clear mechanisms to reduce or mitigate their impacts are missing from the reform. As such, there is no baseline for member states to plan the transition to sustainable production systems for livestock and crops. The CAP instituted GAECs to safeguard permanent grasslands, carbon rich soils, and soil organic matter, but decreases in the "
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0018",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The CAP instituted GAECs to safeguard permanent grasslands, carbon rich soils, and soil organic matter, but decreases in the grassland to cropland ratios are still allowed, effectively depleting carbon stocks, despite the EGD commitments.",
+      "evidence": "The CAP instituted GAECs to safeguard permanent grasslands, carbon rich soils, and soil organic matter, but decreases in the grassland to cropland ratios are still allowed, effectively depleting carbon stocks, despite the EGD commitments.",
+      "claim_representation": "source_range",
+      "claim_type": "empirical finding",
+      "page": "7",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: CLIMATE CHANGE MITIGATION AND ADAPTATION. Requires review.",
+      "line_start": 121,
+      "line_end": 121,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:climate mitigation construct:natural resources",
+      "context_snippet": "asibility of these practices is not addressed by the CAP reform, which lacks specific targets and pathways for GHG reduction. Animal production systems and synthetic agricultural inputs are the major causes of agricultural emissions, but clear mechanisms to reduce or mitigate their impacts are missing from the reform. As such, there is no baseline for member states to plan the transition to sustainable production systems for livestock and crops. The CAP instituted GAECs to safeguard permanent grasslands, carbon rich soils, and soil organic matter, but decreases in the grassland to cropland ratios are still allowed, effectively depleting carbon stocks, despite the EGD commitments. The lack of guidelines for the protection of soils and organic matter also raises concerns regarding consistency of the measures farmers could adopt across regional contexts (Table 3). \n\nThe mismatch between climate mitigation requirements and the expected outcomes derives in part from the funding allocation mechanisms. According to the EGD, funds allocated for climate action should be at least 40% of the CAP overall budget. Yet member states ar"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0019",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The lack of guidelines for the protection of soils and organic matter also raises concerns regarding consistency of the measures farmers could adopt across regional contexts (Table 3).",
+      "evidence": "The lack of guidelines for the protection of soils and organic matter also raises concerns regarding consistency of the measures farmers could adopt across regional contexts (Table 3).",
+      "claim_representation": "source_range",
+      "claim_type": "limitation",
+      "page": "7",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: CLIMATE CHANGE MITIGATION AND ADAPTATION. Requires review.",
+      "line_start": 121,
+      "line_end": 121,
+      "topic": "climate mitigation",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        }
+      ],
+      "tag_text": "construct:climate mitigation construct:natural resources",
+      "context_snippet": "lear mechanisms to reduce or mitigate their impacts are missing from the reform. As such, there is no baseline for member states to plan the transition to sustainable production systems for livestock and crops. The CAP instituted GAECs to safeguard permanent grasslands, carbon rich soils, and soil organic matter, but decreases in the grassland to cropland ratios are still allowed, effectively depleting carbon stocks, despite the EGD commitments. The lack of guidelines for the protection of soils and organic matter also raises concerns regarding consistency of the measures farmers could adopt across regional contexts (Table 3). \n\nThe mismatch between climate mitigation requirements and the expected outcomes derives in part from the funding allocation mechanisms. According to the EGD, funds allocated for climate action should be at least 40% of the CAP overall budget. Yet member states are only required to assign 25% of their Pillar I budget (approximately 19% of the total CAP resources) to ecoschemes targeting climate and environmental action. Additionally, only 30% of "
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0020",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The mismatch between climate mitigation requirements and the expected outcomes derives in part from the funding allocation mechanisms.",
+      "evidence": "The mismatch between climate mitigation requirements and the expected outcomes derives in part from the funding allocation mechanisms.",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "7",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: CLIMATE CHANGE MITIGATION AND ADAPTATION. Requires review.",
+      "line_start": 123,
+      "line_end": 123,
+      "topic": "climate mitigation",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        }
+      ],
+      "tag_text": "construct:climate mitigation construct:funding allocation",
+      "context_snippet": "or livestock and crops. The CAP instituted GAECs to safeguard permanent grasslands, carbon rich soils, and soil organic matter, but decreases in the grassland to cropland ratios are still allowed, effectively depleting carbon stocks, despite the EGD commitments. The lack of guidelines for the protection of soils and organic matter also raises concerns regarding consistency of the measures farmers could adopt across regional contexts (Table 3). \n\nThe mismatch between climate mitigation requirements and the expected outcomes derives in part from the funding allocation mechanisms. According to the EGD, funds allocated for climate action should be at least 40% of the CAP overall budget. Yet member states are only required to assign 25% of their Pillar I budget (approximately 19% of the total CAP resources) to ecoschemes targeting climate and environmental action. Additionally, only 30% of the European Agricultural Fund for Rural Development in Pillar II (around 7% of the total CAP budget) is bound to finance environment an"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0021",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "According to the EGD, funds allocated for climate action should be at least 40% of the CAP overall budget.",
+      "evidence": "According to the EGD, funds allocated for climate action should be at least 40% of the CAP overall budget.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "7",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: CLIMATE CHANGE MITIGATION AND ADAPTATION. Requires review.",
+      "line_start": 123,
+      "line_end": 123,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:climate mitigation construct:funding allocation",
+      "context_snippet": "reases in the grassland to cropland ratios are still allowed, effectively depleting carbon stocks, despite the EGD commitments. The lack of guidelines for the protection of soils and organic matter also raises concerns regarding consistency of the measures farmers could adopt across regional contexts (Table 3). \n\nThe mismatch between climate mitigation requirements and the expected outcomes derives in part from the funding allocation mechanisms. According to the EGD, funds allocated for climate action should be at least 40% of the CAP overall budget. Yet member states are only required to assign 25% of their Pillar I budget (approximately 19% of the total CAP resources) to ecoschemes targeting climate and environmental action. Additionally, only 30% of the European Agricultural Fund for Rural Development in Pillar II (around 7% of the total CAP budget) is bound to finance environment and climate investments, and funding allocation is not systematically linked to any effective climate mitigat"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0022",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Additionally, only 30% of the European Agricultural Fund for Rural Development in Pillar II (around 7% of the total CAP budget) is bound to finance environment and climate investments, and funding allocation is not systematically linked to any effective climate mitigation or adaptation strategy.",
+      "evidence": "Additionally, only 30% of the European Agricultural Fund for Rural Development in Pillar II (around 7% of the total CAP budget) is bound to finance environment and climate investments, and funding allocation is not systematically linked to any effective climate mitigation or adaptation strategy.",
+      "claim_representation": "source_range",
+      "claim_type": "empirical finding",
+      "page": "7",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: CLIMATE CHANGE MITIGATION AND ADAPTATION. Requires review.",
+      "line_start": 123,
+      "line_end": 123,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        }
+      ],
+      "tag_text": "construct:CAP construct:climate mitigation construct:funding allocation",
+      "context_snippet": "ional contexts (Table 3). \n\nThe mismatch between climate mitigation requirements and the expected outcomes derives in part from the funding allocation mechanisms. According to the EGD, funds allocated for climate action should be at least 40% of the CAP overall budget. Yet member states are only required to assign 25% of their Pillar I budget (approximately 19% of the total CAP resources) to ecoschemes targeting climate and environmental action. Additionally, only 30% of the European Agricultural Fund for Rural Development in Pillar II (around 7% of the total CAP budget) is bound to finance environment and climate investments, and funding allocation is not systematically linked to any effective climate mitigation or adaptation strategy. In delineating the requirements for GAECs, ecoschemes, and AECMs, member states can adopt measures with only marginal effects on climate mitigation and adaptation, such as mechanical weed control or cultivation of leguminous plants for crop rotation. Therefore, there is a risk that funds may not be assigned properly, leading to farmers with disproportionately higher emissions receiving more money than those who comply with more restrictive pract"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0023",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "More than 2 decades later, limits are not yet enforced, pesticides sales have not decreased, and the level of human exposure remains largely unknown ([Eurostat, 2021](#ref-021)).",
+      "evidence": "More than 2 decades later, limits are not yet enforced, pesticides sales have not decreased, and the level of human exposure remains largely unknown ([Eurostat, 2021](#ref-021)).",
+      "claim_representation": "source_range",
+      "claim_type": "empirical finding",
+      "page": "7",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: SUSTAINABLE MANAGEMENT OF NATURAL RESOURCES. Requires review.",
+      "line_start": 131,
+      "line_end": 131,
+      "topic": "natural resources",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        }
+      ],
+      "tag_text": "construct:natural resources",
+      "context_snippet": "rvices. Up to 50% of fruits, vegetables, and cereals grown in the EU contain pesticide residues, raising concern about their possible negative effects on human health ([Bjørling-Poulsen et al., 2008](#ref-003)). Since 1997, the European Commission recognized the relevance of setting limits on synthetic inputs as an effective strategy to promote their reduction and avoid undesired effects of long-term exposure on human health and the environment. More than 2 decades later, limits are not yet enforced, pesticides sales have not decreased, and the level of human exposure remains largely unknown ([Eurostat, 2021](#ref-021)). \n\nTo address these concerns, the Farm to Fork Strategy set objectives to reduce the use and risk of pesticides, and the CAP conditionality scheme included 2 old directives, SMR 12 and 13, on plant protection products. However, their unsuccessful application in the past (European Commission, 2020b) \n\n---\n\n*— Page 8 of 13 —*\n\n*— Page 9 of 13 —*\n\n---\n\n*— Page 10 of 13 —*\n\n**10 of 13** \n\n![Figure 7 (page 10)](./figures/fig-007.png)\n\nraises doubts as "
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0024",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Besides these directives, no strategies were included to encourage pesticide reduction, and the lack of targets and standardized monitoring is likely to limit CAP achievements.",
+      "evidence": "Besides these directives, no strategies were included to encourage pesticide reduction, and the lack of targets and standardized monitoring is likely to limit CAP achievements.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: SUSTAINABLE MANAGEMENT OF NATURAL RESOURCES. Requires review.",
+      "line_start": 149,
+      "line_end": 149,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        }
+      ],
+      "tag_text": "construct:CAP construct:monitoring and indicators construct:natural resources",
+      "context_snippet": "ce the use and risk of pesticides, and the CAP conditionality scheme included 2 old directives, SMR 12 and 13, on plant protection products. However, their unsuccessful application in the past (European Commission, 2020b) \n\n---\n\n*— Page 8 of 13 —*\n\n*— Page 9 of 13 —*\n\n---\n\n*— Page 10 of 13 —*\n\n**10 of 13** \n\n![Figure 7 (page 10)](./figures/fig-007.png)\n\nraises doubts as to effects they could have in future reforms if the same mechanisms persist. Besides these directives, no strategies were included to encourage pesticide reduction, and the lack of targets and standardized monitoring is likely to limit CAP achievements. Organic farming aims to produce food using natural substances and processes; therefore, it has great potential to reduce synthetic input and prevent the pollution of soils, water, and air. It is one of the few environmental practices with a specific support mechanism in AECMs payments for converting to or maintaining it. However, the policy lacks specific targets to incentivize the shift to organic practices, which remain marginal in extent (Eur"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0025",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "However, the policy lacks specific targets to incentivize the shift to organic practices, which remain marginal in extent (European Commission, 2020c).",
+      "evidence": "However, the policy lacks specific targets to incentivize the shift to organic practices, which remain marginal in extent (European Commission, 2020c).",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: SUSTAINABLE MANAGEMENT OF NATURAL RESOURCES. Requires review.",
+      "line_start": 149,
+      "line_end": 149,
+      "topic": "monitoring and indicators",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "policy design"
+        }
+      ],
+      "tag_text": "construct:monitoring and indicators construct:natural resources construct:policy design",
+      "context_snippet": "ded to encourage pesticide reduction, and the lack of targets and standardized monitoring is likely to limit CAP achievements. Organic farming aims to produce food using natural substances and processes; therefore, it has great potential to reduce synthetic input and prevent the pollution of soils, water, and air. It is one of the few environmental practices with a specific support mechanism in AECMs payments for converting to or maintaining it. However, the policy lacks specific targets to incentivize the shift to organic practices, which remain marginal in extent (European Commission, 2020c). Moreover, organic farmers are still unprotected against supply-and-demand imbalances that put them at a disadvantage over conventional market competitors and hinder consumer accessibility to organic products ([Naspetti & Zanoli, 2012](#ref-033)). \n\nThe protection of soil and water resources is a priority of the EGD. Still, the CAP conditionality measures do not provide adequate thresholds and criteria to enforce it or efficient strategies to mit"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0026",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Adequate pesticide and nitrates use reporting should complement the obligatory requirements aimed at preserving soil potential ([Guyomard et al., 2020](#ref-024)).",
+      "evidence": "Adequate pesticide and nitrates use reporting should complement the obligatory requirements aimed at preserving soil potential ([Guyomard et al., 2020](#ref-024)).",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: SUSTAINABLE MANAGEMENT OF NATURAL RESOURCES. Requires review.",
+      "line_start": 151,
+      "line_end": 151,
+      "topic": "natural resources",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        }
+      ],
+      "tag_text": "construct:natural resources",
+      "context_snippet": "tions greatly diminish its efficacy and measures for water protection rely on articles of old European directives that are inadequate to respond to current environmental challenges. Specifically, the directives in SMR 1 and 2 concerning protection of waters against nitrate and phosphate pollution ignore negative environmental and health effects of other pollutants, such as copper and cadmium, associated with unsustainable agricultural practices. Adequate pesticide and nitrates use reporting should complement the obligatory requirements aimed at preserving soil potential ([Guyomard et al., 2020](#ref-024)). \n\nThe EGD also acknowledges unsustainable food production as an important driver of natural resources degradation and GHG emissions globally, and the Farm to Fork Strategy seeks to reduce such impacts of food supply chains by ensuring sustainable production and facilitating the shift to healthy diets (European Commission, 2019a). The CAP subsidies can influence production patterns and lead the EU toward sustainable food systems, but direct paymen"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0027",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The approved legislation lacks clear mechanisms or sanctions to prevent detrimental practices, and it is up to member states to properly address CAP resources for environmentally sustainable production.",
+      "evidence": "The approved legislation lacks clear mechanisms or sanctions to prevent detrimental practices, and it is up to member states to properly address CAP resources for environmentally sustainable production.",
+      "claim_representation": "source_range",
+      "claim_type": "limitation",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: SUSTAINABLE MANAGEMENT OF NATURAL RESOURCES. Requires review.",
+      "line_start": 155,
+      "line_end": 155,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        }
+      ],
+      "tag_text": "construct:CAP",
+      "context_snippet": "els, which, although necessary to reduce fossil fuels demand, promoted native habitat loss in overseas territories ([Müller & Bautze, 2017](#ref-032)). Approved subsidies to oilseed plantations in pristine areas of French Guiana's Amazon forest were based on the premises that jobs would be created and \n\nbiofuels produced; instead, there is the risk of promoting largescale deforestation in previously unaffected areas ([Catanoso, 2020](#ref-005)). The approved legislation lacks clear mechanisms or sanctions to prevent detrimental practices, and it is up to member states to properly address CAP resources for environmentally sustainable production. \n\nThe EGD also recognizes food waste and unsustainable consumption as key drivers of biodiversity loss, contamination of soil and water resources, excessive carbon footprint, use of pesticides, and human health problems (European Commission, 2020d). Consumption of meat and dairy above recommended levels and their unsustainable production should be specifically addressed in the CAP. Yet the legislation actively subsidizes their production and over"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0028",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Discouraging unhealthy consumption of livestock products could benefit the environment and public health, and the CAP should not disregard its potential key role in preventing unsustainable practices (Table 2).",
+      "evidence": "Discouraging unhealthy consumption of livestock products could benefit the environment and public health, and the CAP should not disregard its potential key role in preventing unsustainable practices (Table 2).",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: SUSTAINABLE MANAGEMENT OF NATURAL RESOURCES. Requires review.",
+      "line_start": 157,
+      "line_end": 157,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        }
+      ],
+      "tag_text": "construct:CAP",
+      "context_snippet": "ption as key drivers of biodiversity loss, contamination of soil and water resources, excessive carbon footprint, use of pesticides, and human health problems (European Commission, 2020d). Consumption of meat and dairy above recommended levels and their unsustainable production should be specifically addressed in the CAP. Yet the legislation actively subsidizes their production and overlooks practices to reduce unhealthy intake of such products. Discouraging unhealthy consumption of livestock products could benefit the environment and public health, and the CAP should not disregard its potential key role in preventing unsustainable practices (Table 2). \n\n## **OPPORTUNITIES FOR CROSS-CUTTING INTEGRATIONS** \n\nDespite the commitments of the policy, the set of CAP conditionality requirements and voluntary schemes are functionally disconnected from the objectives set under the EGD, weakening the CAP's ability to achieve pressing environmental objectives. The majority of monetary resources is still pooled into payments that encourage input-intensive and high-emission systems, whereas the economic and"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0029",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Despite the commitments of the policy, the set of CAP conditionality requirements and voluntary schemes are functionally disconnected from the objectives set under the EGD, weakening the CAP's ability to achieve pressing environmental objectives.",
+      "evidence": "Despite the commitments of the policy, the set of CAP conditionality requirements and voluntary schemes are functionally disconnected from the objectives set under the EGD, weakening the CAP's ability to achieve pressing environmental objectives.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: OPPORTUNITIES FOR CROSS-CUTTING INTEGRATIONS. Requires review.",
+      "line_start": 161,
+      "line_end": 161,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "policy design"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:policy design",
+      "context_snippet": " production should be specifically addressed in the CAP. Yet the legislation actively subsidizes their production and overlooks practices to reduce unhealthy intake of such products. Discouraging unhealthy consumption of livestock products could benefit the environment and public health, and the CAP should not disregard its potential key role in preventing unsustainable practices (Table 2). \n\n## **OPPORTUNITIES FOR CROSS-CUTTING INTEGRATIONS** \n\nDespite the commitments of the policy, the set of CAP conditionality requirements and voluntary schemes are functionally disconnected from the objectives set under the EGD, weakening the CAP's ability to achieve pressing environmental objectives. The majority of monetary resources is still pooled into payments that encourage input-intensive and high-emission systems, whereas the economic and environmental added value from ecosystem services provided by low-input agricultural areas has been largely overlooked. The new measures added by the enhanced conditionality scheme establish lower levels of environmental protection compared with the previous obligatory greening requirements under cro"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0030",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The criteria to assess the efficiency of environmental practices and to reject those that are ineffective remain unclear, and administrative penalties for beneficiaries who do not comply appear to be less dissuasive than those previously enforced.",
+      "evidence": "The criteria to assess the efficiency of environmental practices and to reject those that are ineffective remain unclear, and administrative penalties for beneficiaries who do not comply appear to be less dissuasive than those previously enforced.",
+      "claim_representation": "source_range",
+      "claim_type": "empirical finding",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: OPPORTUNITIES FOR CROSS-CUTTING INTEGRATIONS. Requires review.",
+      "line_start": 161,
+      "line_end": 161,
+      "topic": "empirical finding",
+      "tags": [],
+      "tag_text": "",
+      "context_snippet": "f monetary resources is still pooled into payments that encourage input-intensive and high-emission systems, whereas the economic and environmental added value from ecosystem services provided by low-input agricultural areas has been largely overlooked. The new measures added by the enhanced conditionality scheme establish lower levels of environmental protection compared with the previous obligatory greening requirements under cross-compliance. The criteria to assess the efficiency of environmental practices and to reject those that are ineffective remain unclear, and administrative penalties for beneficiaries who do not comply appear to be less dissuasive than those previously enforced. Also, some of the measures previously implemented as compulsory will now only be addressed in the voluntary ecoschemes, delegating responsibility to individual member states (Appendix S1). \n\nDue to the flexibility granted to member states to promote interventions according to their assessed priorities, environmental funds can be reallocated for purposes that do not necessarily prioritize environmental measures. To avoid this, member states shoul"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0031",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "To avoid this, member states should allocate fixed portions of ecoschemes and AECM budgets to each environmental objective.",
+      "evidence": "To avoid this, member states should allocate fixed portions of ecoschemes and AECM budgets to each environmental objective.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: OPPORTUNITIES FOR CROSS-CUTTING INTEGRATIONS. Requires review.",
+      "line_start": 163,
+      "line_end": 163,
+      "topic": "AECM",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "AECM"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "eco-schemes"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        }
+      ],
+      "tag_text": "construct:AECM construct:eco-schemes construct:funding allocation",
+      "context_snippet": "ve than those previously enforced. Also, some of the measures previously implemented as compulsory will now only be addressed in the voluntary ecoschemes, delegating responsibility to individual member states (Appendix S1). \n\nDue to the flexibility granted to member states to promote interventions according to their assessed priorities, environmental funds can be reallocated for purposes that do not necessarily prioritize environmental measures. To avoid this, member states should allocate fixed portions of ecoschemes and AECM budgets to each environmental objective. Evidencebased interventions should be defined to pursue specific targets that go beyond basic conditionality requirements and are consistent with the overall goals of the EGD (Table 2). Their evaluation should be based on quantitative assessments done on a regular basis and specifically designed to measure the impact of interventions. Embedding assessments in long-term monitoring programs will allow for early identification of trends and correct"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0032",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Embedding assessments in long-term monitoring programs will allow for early identification of trends and correction actions, especially if payments are based on performance.",
+      "evidence": "Embedding assessments in long-term monitoring programs will allow for early identification of trends and correction actions, especially if payments are based on performance.",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "10",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: OPPORTUNITIES FOR CROSS-CUTTING INTEGRATIONS. Requires review.",
+      "line_start": 163,
+      "line_end": 163,
+      "topic": "funding allocation",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "funding allocation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "monitoring and indicators"
+        }
+      ],
+      "tag_text": "construct:funding allocation construct:monitoring and indicators",
+      "context_snippet": "is, member states should allocate fixed portions of ecoschemes and AECM budgets to each environmental objective. Evidencebased interventions should be defined to pursue specific targets that go beyond basic conditionality requirements and are consistent with the overall goals of the EGD (Table 2). Their evaluation should be based on quantitative assessments done on a regular basis and specifically designed to measure the impact of interventions. Embedding assessments in long-term monitoring programs will allow for early identification of trends and correction actions, especially if payments are based on performance. Regionally predefined interventions could \n\n---\n\n*— Page 11 of 13 —*\n\n**11 of 13** \n\n![Figure 8 (page 11)](./figures/fig-008.png)\n\n![Figure 9 (page 11)](./figures/fig-009.png)\n\n**FIGURE 1** Synergies among measures to pursue sustainable food production in the EU Common Agricultural Policy (CAP) reform and the proposed strategies of the EU Green Deal (3 main axes, green deal strategies that support the environmental objectives of the CAP; boxes, "
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0033",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Practices potentially benefiting multiple CAP objectives should be strongly encouraged, such as reducing synthetic input to benefit biodiversity, climate change mitigation, and water and soil quality (Figure 1).",
+      "evidence": "Practices potentially benefiting multiple CAP objectives should be strongly encouraged, such as reducing synthetic input to benefit biodiversity, climate change mitigation, and water and soil quality (Figure 1).",
+      "claim_representation": "source_range",
+      "claim_type": "policy implication",
+      "page": "11",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: OPPORTUNITIES FOR CROSS-CUTTING INTEGRATIONS. Requires review.",
+      "line_start": 177,
+      "line_end": 177,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "natural resources"
+        }
+      ],
+      "tag_text": "construct:CAP construct:biodiversity construct:climate mitigation construct:natural resources",
+      "context_snippet": "nes converging at the center, measures, objectives, and strategies that if implemented correctly could contribute to the achievement of sustainable food production [underlying objective of the EU Green Deal and the CAP]). Image by Hagen Meischner from www.flickr.com/photos/hagens_world/14407622114 licensed under CC-BY-NC-ND 2.0. \n\nprovide farmers with guidelines on how to implement ecoschemes and AECMs with proven positive environmental effects. Practices potentially benefiting multiple CAP objectives should be strongly encouraged, such as reducing synthetic input to benefit biodiversity, climate change mitigation, and water and soil quality (Figure 1). \n\nThe unprecedented degradation of nature and its negative effects on human well-being demand bold policy measures to put producers on the path to sustainable use of natural resources. Although the CAP offers a variety of tools for the EU agricultural sector to do so, it fails to provide mechanisms of adhesion to such schemes. Procedures introduced by the European Commission to analyze strategic plan outcomes before their adoption (ex ante impact"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0034",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "Because ecological focus areas can increase the capacity of landscapes to supply important ecosystem services, their suspension will likely worsen the negative effects of climate change and environmental degradation on crop and dairy production in the long term.",
+      "evidence": "Because ecological focus areas can increase the capacity of landscapes to supply important ecosystem services, their suspension will likely worsen the negative effects of climate change and environmental degradation on crop and dairy production in the long term.",
+      "claim_representation": "source_range",
+      "claim_type": "empirical finding",
+      "page": "12",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: ENVIRONMENTAL COMMITMENTS AMIDST GLOBAL CRISES. Requires review.",
+      "line_start": 195,
+      "line_end": 195,
+      "topic": "biodiversity",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        }
+      ],
+      "tag_text": "construct:biodiversity construct:climate mitigation",
+      "context_snippet": "10.png)\n\nand worldwide, pushing legislators for rapid rollbacks of elusive environmental progress made over recent years. For example, the temporal derogation of the ecological focus areas, one of the few greening measures set in CAP 2014-2020 with the objective to increase the area for crop production, may have disproportionately negative effects on biodiversity and ecosystem services in comparison with the expected increase in food production. Because ecological focus areas can increase the capacity of landscapes to supply important ecosystem services, their suspension will likely worsen the negative effects of climate change and environmental degradation on crop and dairy production in the long term. The abolition of these areas to increase cereal production in 2007 has already shown the irreversible effects of similar measures on European diversity ([Herzon et al., 2011](#ref-027)). The EGD strategies and the CAP have the potential to change production and consumption patterns in the EU to rightfully respond to the current biodiversity and climate emergencies by maintaining the EU's environmental ambition to make its food system sustainable"
+    },
+    {
+      "claim_id": "CLM-CuadrosCasanova_2022-0035",
+      "source_id": "CuadrosCasanova_2022",
+      "citation_hint": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco (2022)",
+      "source_title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+      "year": "2022",
+      "doi": "10.1111/cobi.14052",
+      "claim": "The EGD strategies and the CAP have the potential to change production and consumption patterns in the EU to rightfully respond to the current biodiversity and climate emergencies by maintaining the EU's environmental ambition to make its food system sustainable, resilient, and climate neutral.",
+      "evidence": "The EGD strategies and the CAP have the potential to change production and consumption patterns in the EU to rightfully respond to the current biodiversity and climate emergencies by maintaining the EU's environmental ambition to make its food system sustainable, resilient, and climate neutral.",
+      "claim_representation": "source_range",
+      "claim_type": "background",
+      "page": "12",
+      "page_status": "page_matched_from_source_span",
+      "verification_status": "candidate_needs_review",
+      "confidence": "medium",
+      "scope_note": "Auto-selected source-range candidate from section: ENVIRONMENTAL COMMITMENTS AMIDST GLOBAL CRISES. Requires review.",
+      "line_start": 195,
+      "line_end": 195,
+      "topic": "CAP",
+      "tags": [
+        {
+          "tag_type": "construct",
+          "tag": "CAP"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "European Green Deal"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "biodiversity"
+        },
+        {
+          "tag_type": "construct",
+          "tag": "climate mitigation"
+        }
+      ],
+      "tag_text": "construct:CAP construct:European Green Deal construct:biodiversity construct:climate mitigation",
+      "context_snippet": "Because ecological focus areas can increase the capacity of landscapes to supply important ecosystem services, their suspension will likely worsen the negative effects of climate change and environmental degradation on crop and dairy production in the long term. The abolition of these areas to increase cereal production in 2007 has already shown the irreversible effects of similar measures on European diversity ([Herzon et al., 2011](#ref-027)). The EGD strategies and the CAP have the potential to change production and consumption patterns in the EU to rightfully respond to the current biodiversity and climate emergencies by maintaining the EU's environmental ambition to make its food system sustainable, resilient, and climate neutral. Consequently, the environmental components of these policies should not be watered down or counteracted in times of crisis and shifting political priorities ([Strange et al., 2022](#ref-046)). The consequences of doing so threaten the natural resources and biodiversity on which the foundation of food systems stands. Food insecurity and the social and economic impacts of it will only increase if unsustainable production and consumption practices "
     }
   ],
   "stats": {
-    "source_count": 2,
-    "claim_count": 69,
+    "source_count": 3,
+    "claim_count": 104,
     "status_counts": {
-      "candidate_needs_review": 35,
+      "candidate_needs_review": 70,
       "needs_page_check": 34
     },
     "claim_type_counts": {
       "methodological claim": 8,
-      "background": 3,
-      "empirical finding": 30,
-      "policy implication": 8,
+      "background": 11,
+      "empirical finding": 35,
+      "policy implication": 25,
       "theoretical claim": 15,
-      "limitation": 3,
+      "limitation": 8,
       "definition": 2
     },
     "topic_counts": {
@@ -4847,14 +6082,24 @@
       "contextualisation": 1,
       "co-design": 1,
       "nudging": 1,
-      "behavioural indicators": 1
+      "behavioural indicators": 1,
+      "CAP": 22,
+      "climate mitigation": 3,
+      "biodiversity": 4,
+      "natural resources": 2,
+      "monitoring and indicators": 1,
+      "empirical finding": 1,
+      "AECM": 1,
+      "funding allocation": 1
     },
     "year_counts": {
       "2023": 1,
-      "2024": 1
+      "2024": 1,
+      "2022": 1
     },
     "representation_counts": {
-      "paraphrase": 69
+      "paraphrase": 69,
+      "source_range": 35
     }
   },
   "network": {
@@ -4958,6 +6203,44 @@
       {
         "id": "methodology:logit/probit synthesis",
         "label": "logit/probit synthesis",
+        "kind": "methodology"
+      },
+      {
+        "id": "source:CuadrosCasanova_2022",
+        "label": "CuadrosCasanova_2022",
+        "kind": "source",
+        "year": "2022",
+        "title": "Opportunities and challenges for Common Agricultural Policy reform to support the European Green Deal",
+        "authors": "Cuadros-Casanova; Cristiano; Biancolini; Cimatti; Sessa; Mendez Angarita; Dragonetti; Rondinini; Di Marco"
+      },
+      {
+        "id": "year:2022",
+        "label": "2022",
+        "kind": "year"
+      },
+      {
+        "id": "disciplines:agricultural policy",
+        "label": "agricultural policy",
+        "kind": "discipline"
+      },
+      {
+        "id": "disciplines:sustainability science",
+        "label": "sustainability science",
+        "kind": "discipline"
+      },
+      {
+        "id": "geography:european union",
+        "label": "European Union",
+        "kind": "geography"
+      },
+      {
+        "id": "methodology:literature review",
+        "label": "literature review",
+        "kind": "methodology"
+      },
+      {
+        "id": "methodology:policy analysis",
+        "label": "policy analysis",
         "kind": "methodology"
       },
       {
@@ -6321,6 +7604,371 @@
         "topic": "contract design",
         "status": "needs_page_check",
         "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0001",
+        "label": "CLM-CuadrosCasanova_2022-0001",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "topic:cap",
+        "label": "CAP",
+        "kind": "topic"
+      },
+      {
+        "id": "construct:cap",
+        "label": "CAP",
+        "kind": "construct"
+      },
+      {
+        "id": "construct:european green deal",
+        "label": "European Green Deal",
+        "kind": "construct"
+      },
+      {
+        "id": "construct:climate mitigation",
+        "label": "climate mitigation",
+        "kind": "construct"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0002",
+        "label": "CLM-CuadrosCasanova_2022-0002",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
+      },
+      {
+        "id": "construct:biodiversity",
+        "label": "biodiversity",
+        "kind": "construct"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0003",
+        "label": "CLM-CuadrosCasanova_2022-0003",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "limitation"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0004",
+        "label": "CLM-CuadrosCasanova_2022-0004",
+        "kind": "claim",
+        "topic": "climate mitigation",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
+      },
+      {
+        "id": "topic:climate mitigation",
+        "label": "climate mitigation",
+        "kind": "topic"
+      },
+      {
+        "id": "construct:funding allocation",
+        "label": "funding allocation",
+        "kind": "construct"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0005",
+        "label": "CLM-CuadrosCasanova_2022-0005",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "construct:monitoring and indicators",
+        "label": "monitoring and indicators",
+        "kind": "construct"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0006",
+        "label": "CLM-CuadrosCasanova_2022-0006",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0007",
+        "label": "CLM-CuadrosCasanova_2022-0007",
+        "kind": "claim",
+        "topic": "biodiversity",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
+      },
+      {
+        "id": "topic:biodiversity",
+        "label": "biodiversity",
+        "kind": "topic"
+      },
+      {
+        "id": "construct:natural resources",
+        "label": "natural resources",
+        "kind": "construct"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0008",
+        "label": "CLM-CuadrosCasanova_2022-0008",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0009",
+        "label": "CLM-CuadrosCasanova_2022-0009",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "limitation"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0010",
+        "label": "CLM-CuadrosCasanova_2022-0010",
+        "kind": "claim",
+        "topic": "biodiversity",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0011",
+        "label": "CLM-CuadrosCasanova_2022-0011",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0012",
+        "label": "CLM-CuadrosCasanova_2022-0012",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "limitation"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0013",
+        "label": "CLM-CuadrosCasanova_2022-0013",
+        "kind": "claim",
+        "topic": "biodiversity",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0014",
+        "label": "CLM-CuadrosCasanova_2022-0014",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0015",
+        "label": "CLM-CuadrosCasanova_2022-0015",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0016",
+        "label": "CLM-CuadrosCasanova_2022-0016",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0017",
+        "label": "CLM-CuadrosCasanova_2022-0017",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0018",
+        "label": "CLM-CuadrosCasanova_2022-0018",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "empirical finding"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0019",
+        "label": "CLM-CuadrosCasanova_2022-0019",
+        "kind": "claim",
+        "topic": "climate mitigation",
+        "status": "candidate_needs_review",
+        "claim_type": "limitation"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0020",
+        "label": "CLM-CuadrosCasanova_2022-0020",
+        "kind": "claim",
+        "topic": "climate mitigation",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0021",
+        "label": "CLM-CuadrosCasanova_2022-0021",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0022",
+        "label": "CLM-CuadrosCasanova_2022-0022",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "empirical finding"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0023",
+        "label": "CLM-CuadrosCasanova_2022-0023",
+        "kind": "claim",
+        "topic": "natural resources",
+        "status": "candidate_needs_review",
+        "claim_type": "empirical finding"
+      },
+      {
+        "id": "topic:natural resources",
+        "label": "natural resources",
+        "kind": "topic"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0024",
+        "label": "CLM-CuadrosCasanova_2022-0024",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0025",
+        "label": "CLM-CuadrosCasanova_2022-0025",
+        "kind": "claim",
+        "topic": "monitoring and indicators",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "topic:monitoring and indicators",
+        "label": "monitoring and indicators",
+        "kind": "topic"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0026",
+        "label": "CLM-CuadrosCasanova_2022-0026",
+        "kind": "claim",
+        "topic": "natural resources",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0027",
+        "label": "CLM-CuadrosCasanova_2022-0027",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "limitation"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0028",
+        "label": "CLM-CuadrosCasanova_2022-0028",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0029",
+        "label": "CLM-CuadrosCasanova_2022-0029",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0030",
+        "label": "CLM-CuadrosCasanova_2022-0030",
+        "kind": "claim",
+        "topic": "empirical finding",
+        "status": "candidate_needs_review",
+        "claim_type": "empirical finding"
+      },
+      {
+        "id": "topic:empirical finding",
+        "label": "empirical finding",
+        "kind": "topic"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0031",
+        "label": "CLM-CuadrosCasanova_2022-0031",
+        "kind": "claim",
+        "topic": "AECM",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "topic:aecm",
+        "label": "AECM",
+        "kind": "topic"
+      },
+      {
+        "id": "construct:aecm",
+        "label": "AECM",
+        "kind": "construct"
+      },
+      {
+        "id": "construct:eco-schemes",
+        "label": "eco-schemes",
+        "kind": "construct"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0032",
+        "label": "CLM-CuadrosCasanova_2022-0032",
+        "kind": "claim",
+        "topic": "funding allocation",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "topic:funding allocation",
+        "label": "funding allocation",
+        "kind": "topic"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0033",
+        "label": "CLM-CuadrosCasanova_2022-0033",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "policy implication"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0034",
+        "label": "CLM-CuadrosCasanova_2022-0034",
+        "kind": "claim",
+        "topic": "biodiversity",
+        "status": "candidate_needs_review",
+        "claim_type": "empirical finding"
+      },
+      {
+        "id": "claim:CLM-CuadrosCasanova_2022-0035",
+        "label": "CLM-CuadrosCasanova_2022-0035",
+        "kind": "claim",
+        "topic": "CAP",
+        "status": "candidate_needs_review",
+        "claim_type": "background"
       }
     ],
     "edges": [
@@ -6423,6 +8071,54 @@
       {
         "source": "source:Canessa_2024",
         "target": "methodology:logit/probit synthesis",
+        "kind": "methodology",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "year:2022",
+        "kind": "published_in",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "disciplines:conservation biology",
+        "kind": "disciplines",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "disciplines:environmental policy",
+        "kind": "disciplines",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "disciplines:agricultural policy",
+        "kind": "disciplines",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "disciplines:sustainability science",
+        "kind": "disciplines",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "geography:european union",
+        "kind": "geography",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "methodology:literature review",
+        "kind": "methodology",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "methodology:policy analysis",
         "kind": "methodology",
         "weight": 1
       },
@@ -9185,6 +10881,1200 @@
         "target": "rq:rq3",
         "kind": "tag:rq",
         "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0001",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0001",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0001",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0001",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0001",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0001",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0001",
+        "target": "construct:policy design",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0002",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0002",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0002",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0002",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0002",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0002",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0002",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0003",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0003",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0003",
+        "target": "claim_type:limitation",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0003",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0003",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0004",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0004",
+        "target": "topic:climate mitigation",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0004",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0004",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0004",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0005",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0005",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0005",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0005",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0005",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0005",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0005",
+        "target": "construct:policy design",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0006",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0006",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0006",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0006",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0006",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0007",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0007",
+        "target": "topic:biodiversity",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0007",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0007",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0007",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0007",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0008",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0008",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0008",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0008",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0008",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0008",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0008",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0009",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0009",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0009",
+        "target": "claim_type:limitation",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0009",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0009",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0009",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0010",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0010",
+        "target": "topic:biodiversity",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0010",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0010",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0011",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0011",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0011",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0011",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0011",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0011",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0012",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0012",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0012",
+        "target": "claim_type:limitation",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0012",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0012",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0013",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0013",
+        "target": "topic:biodiversity",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0013",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0013",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0013",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0014",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0014",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0014",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0014",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0014",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0014",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0014",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0015",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0015",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0015",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0015",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0015",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0015",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0015",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0016",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0016",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0016",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0016",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0016",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0016",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0016",
+        "target": "construct:policy design",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0017",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0017",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0017",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0017",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0017",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0017",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0018",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0018",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0018",
+        "target": "claim_type:empirical finding",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0018",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0018",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0018",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0018",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0019",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0019",
+        "target": "topic:climate mitigation",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0019",
+        "target": "claim_type:limitation",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0019",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0019",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0020",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0020",
+        "target": "topic:climate mitigation",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0020",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0020",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0020",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0021",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0021",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0021",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0021",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0021",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0021",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0021",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0022",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0022",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0022",
+        "target": "claim_type:empirical finding",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0022",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0022",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0022",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0023",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0023",
+        "target": "topic:natural resources",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0023",
+        "target": "claim_type:empirical finding",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0023",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0024",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0024",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0024",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0024",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0024",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0024",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0025",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0025",
+        "target": "topic:monitoring and indicators",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0025",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0025",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0025",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0025",
+        "target": "construct:policy design",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0026",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0026",
+        "target": "topic:natural resources",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0026",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0026",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0027",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0027",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0027",
+        "target": "claim_type:limitation",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0027",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0028",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0028",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0028",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0028",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0029",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0029",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0029",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0029",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0029",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0029",
+        "target": "construct:policy design",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0030",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0030",
+        "target": "topic:empirical finding",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0030",
+        "target": "claim_type:empirical finding",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0031",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0031",
+        "target": "topic:aecm",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0031",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0031",
+        "target": "construct:aecm",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0031",
+        "target": "construct:eco-schemes",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0031",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0032",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0032",
+        "target": "topic:funding allocation",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0032",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0032",
+        "target": "construct:funding allocation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0032",
+        "target": "construct:monitoring and indicators",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0033",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0033",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0033",
+        "target": "claim_type:policy implication",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0033",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0033",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0033",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0033",
+        "target": "construct:natural resources",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0034",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0034",
+        "target": "topic:biodiversity",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0034",
+        "target": "claim_type:empirical finding",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0034",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0034",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "source:CuadrosCasanova_2022",
+        "target": "claim:CLM-CuadrosCasanova_2022-0035",
+        "kind": "has_claim",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0035",
+        "target": "topic:cap",
+        "kind": "about",
+        "weight": 2
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0035",
+        "target": "claim_type:background",
+        "kind": "is_type",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0035",
+        "target": "construct:cap",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0035",
+        "target": "construct:european green deal",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0035",
+        "target": "construct:biodiversity",
+        "kind": "tag:construct",
+        "weight": 1
+      },
+      {
+        "source": "claim:CLM-CuadrosCasanova_2022-0035",
+        "target": "construct:climate mitigation",
+        "kind": "tag:construct",
+        "weight": 1
       }
     ],
     "paper_edges": [
@@ -9195,6 +12085,22 @@
         "shared": [
           "additionality",
           "construct:additionality",
+          "construct:policy design"
+        ]
+      },
+      {
+        "source": "BadenBohm_2023",
+        "target": "CuadrosCasanova_2022",
+        "similarity": 0.009,
+        "shared": [
+          "construct:policy design"
+        ]
+      },
+      {
+        "source": "Canessa_2024",
+        "target": "CuadrosCasanova_2022",
+        "similarity": 0.011,
+        "shared": [
           "construct:policy design"
         ]
       }

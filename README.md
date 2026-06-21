@@ -102,10 +102,28 @@ Expand source context for one claim:
 python rh2.py context CLM-BadenBohm_2023-0015 --window 500 --json
 ```
 
+Build a compact writing brief for an LLM/human paragraph or section:
+
+```bash
+python rh2.py writing-brief \
+  "trust policy stability participation" \
+  --section-type discussion \
+  --limit 8 \
+  --token-budget 1800
+```
+
 Build a chapter evidence brief:
 
 ```bash
 python rh2.py chapter-brief eco_schemes_discussion_rq2_rq3
+```
+
+Extract citation contexts for reference-web/backtracking:
+
+```bash
+python rh2.py extract-citations Canessa_2024 --clear
+python rh2.py citation-report --source-id Canessa_2024 --limit 20
+python rh2.py citation-context CITCTX-Canessa_2024-00001 --limit 5
 ```
 
 Check stats:
