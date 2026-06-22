@@ -89,7 +89,7 @@ python rh2.py mark-claim \
   --json
 ```
 
-Retrieve compact claim cards:
+Retrieve compact source cards / claim cards:
 
 ```bash
 python rh2.py retrieve \
@@ -99,6 +99,20 @@ python rh2.py retrieve \
   --fields minimal \
   --json
 ```
+
+Use `card_role` to distinguish result claims from context cards:
+
+```bash
+python rh2.py retrieve "monitoring targets" \
+  --source-id CuadrosCasanova_2022 \
+  --card-role result_claim
+
+python rh2.py retrieve "monitoring targets" \
+  --source-id CuadrosCasanova_2022 \
+  --card-role policy_design_card
+```
+
+Current roles include `result_claim`, `method_card`, `definition_card`, `theory_card`, `background_card`, `limitation_card`, `policy_design_card`, and `contradiction_card`.
 
 Expand source context for one claim:
 

@@ -30,6 +30,7 @@ CLAIM_TYPES = {
 STATUSES = {"verified", "rejected", "candidate_needs_review", "needs_page_check", "needs_source_check", "superseded"}
 EVIDENCE_GRADES = {"A", "B", "C", "D", "X"}
 RELATION_TYPES = {"supports", "contradicts", "qualifies", "same_concept", "methodologically_incompatible", "stronger_than", "weaker_than", "supersedes"}
+CARD_ROLES = {"result_claim", "interpretive_claim", "policy_design_card", "method_card", "definition_card", "theory_card", "background_card", "limitation_card", "contradiction_card", "unknown_card"}
 
 PAGE_MARKER_RE = re.compile(
     r"(?im)^[ \t]*(?:"
@@ -671,6 +672,34 @@ def evidence_grade(row: sqlite3.Row|dict[str, Any]) -> str:
     return "D"
 
 
+def card_role(row: sqlite3.Row|dict[str, Any]) -> str:
+    """Classify how a source-range card should be used in writing.
+
+    This deliberately separates literal result claims from context/background/method cards.
+    The database table is still named `claims` for backwards compatibility, but the UI/LLM
+    should treat `card_role` as the writing-time semantic role.
+    """
+    d=dict(row)
+    ct=(d.get("claim_type") or "unknown").lower()
+    if ct == "empirical finding":
+        return "result_claim"
+    if ct == "methodological claim":
+        return "method_card"
+    if ct == "definition":
+        return "definition_card"
+    if ct == "theoretical claim":
+        return "theory_card"
+    if ct == "policy implication":
+        return "policy_design_card"
+    if ct == "limitation":
+        return "limitation_card"
+    if ct == "background":
+        return "background_card"
+    if ct == "contradiction":
+        return "contradiction_card"
+    return "unknown_card"
+
+
 def claim_relations_for(claim_id: str) -> list[dict[str, Any]]:
     conn=db()
     rows=conn.execute("""
@@ -724,7 +753,7 @@ def claim_card(row: sqlite3.Row|dict[str, Any], fields: str="minimal") -> dict[s
     card={
         "claim_id": d.get("claim_id"), "score": round(float(d.get("score", 0) or 0),4),
         "source_id": d.get("source_id"), "citation_hint": citation, "page": page_for_claim_dict(d),
-        "status": d.get("verification_status"), "evidence_grade": evidence_grade(d), "claim_type": d.get("claim_type"),
+        "status": d.get("verification_status"), "evidence_grade": evidence_grade(d), "claim_type": d.get("claim_type"), "card_role": card_role(d),
         "claim_representation": representation, "claim": display_claim,
     }
     if d.get("why_retrieved"): card["why_retrieved"] = d.get("why_retrieved")
@@ -864,6 +893,7 @@ def retrieve_claims(query: str, limit: int=8, fields: str="minimal", filters: di
         if filters.get("verified_only") and d["verification_status"] != "verified": continue
         if filters.get("statuses") and d["verification_status"] not in filters["statuses"]: continue
         if filters.get("claim_types") and d["claim_type"] not in filters["claim_types"]: continue
+        if filters.get("card_roles") and card_role(d) not in filters["card_roles"]: continue
         tags=" ".join(tags_for_claim(d["claim_id"]))
         overlap=token_overlap_score(query, " ".join([d.get("claim",""), d.get("evidence",""), tags]))
         rank=bm25.get(d["claim_id"])
@@ -877,14 +907,14 @@ def retrieve_claims(query: str, limit: int=8, fields: str="minimal", filters: di
 
 
 def cmd_retrieve(args):
-    filters={"source_id": args.source_id, "verified_only": args.verified_only, "statuses": split_list(args.status), "claim_types": split_list(args.claim_type)}
+    filters={"source_id": args.source_id, "verified_only": args.verified_only, "statuses": split_list(args.status), "claim_types": split_list(args.claim_type), "card_roles": split_list(getattr(args, "card_role", None))}
     results=retrieve_claims(args.query,args.limit,args.fields,filters)
     payload={"query": args.query, "count": len(results), "results": results}
     if args.json: print_json(payload)
     else:
         print(f"# retrieve: {args.query}\n")
         for r in results:
-            print(f"- **{r['claim_id']}** [{r['score']}] grade:{r.get('evidence_grade')} · {r['citation_hint']} p.{r.get('page') or '?'} · {r['status']} · {r['claim_type']}")
+            print(f"- **{r['claim_id']}** [{r['score']}] grade:{r.get('evidence_grade')} · role:{r.get('card_role')} · {r['citation_hint']} p.{r.get('page') or '?'} · {r['status']} · {r['claim_type']}")
             print(f"  {r['claim']}")
             if args.fields in ["standard","full"] and r.get("evidence"): print(f"  evidence: {short(r['evidence'])}")
             if r.get("why_retrieved"): print(f"  why: {', '.join(r['why_retrieved'])}")
@@ -1154,7 +1184,7 @@ def render_chapter_brief_md(packet: dict[str, Any]) -> str:
     for sec in packet.get("sections", []):
         lines += ["", f"## {sec.get('heading') or sec.get('section_id')}", "", f"Writing goal: {sec.get('writing_goal','')}", "", f"Query: `{sec.get('query','')}`", ""]
         for c in sec.get("claims", []):
-            lines.append(f"- **{c['claim_id']}** [{c['score']}] grade:{c.get('evidence_grade')} · {c['citation_hint']} p.{c.get('page') or '?'} · {c['status']} · {c['claim_type']} · `{c.get('claim_representation')}`")
+            lines.append(f"- **{c['claim_id']}** [{c['score']}] grade:{c.get('evidence_grade')} · {c['citation_hint']} p.{c.get('page') or '?'} · {c['status']} · {c.get('card_role')} · {c['claim_type']} · `{c.get('claim_representation')}`")
             lines.append(f"  - Claim: {c['claim']}")
             lines.append(f"  - Evidence: {short(c.get('evidence',''), 300)}")
             lines.append(f"  - Deep dive: `python rh2.py context {c['claim_id']} --window 500`")
@@ -1404,15 +1434,17 @@ def cmd_paper_search(args):
         print(f"- [{r['score']}] {r['source_id']} | {r.get('authors')} ({r.get('year')}) | {r.get('title')}")
 
 
-def all_claim_cards_for_source(source_id: str, fields: str = "standard", status: str | None = None, verified_only: bool=False, claim_type: str | None=None) -> list[dict[str, Any]]:
+def all_claim_cards_for_source(source_id: str, fields: str = "standard", status: str | None = None, verified_only: bool=False, claim_type: str | None=None, card_role_filter: str | None=None) -> list[dict[str, Any]]:
     conn=db(); rows=[dict(r) for r in conn.execute("SELECT * FROM claims WHERE source_id=? AND verification_status!='rejected' ORDER BY char_start, claim_id", (source_id,)).fetchall()]; conn.close()
     allowed_status=split_list(status)
     allowed_type=split_list(claim_type)
+    allowed_role=split_list(card_role_filter)
     cards=[]
     for r in rows:
         if verified_only and r.get("verification_status") != "verified": continue
         if allowed_status and r.get("verification_status") not in allowed_status: continue
         if allowed_type and r.get("claim_type") not in allowed_type: continue
+        if allowed_role and card_role(r) not in allowed_role: continue
         cards.append(claim_card(r, fields))
     return cards
 
@@ -1421,7 +1453,7 @@ def cmd_paper_brief(args):
     papers=rank_papers(args.query,args.paper_limit)
     sections=[]; total_tokens=0
     for p in papers:
-        cards=all_claim_cards_for_source(p["source_id"], "standard", status=args.status, verified_only=args.verified_only, claim_type=args.claim_type)
+        cards=all_claim_cards_for_source(p["source_id"], "standard", status=args.status, verified_only=args.verified_only, claim_type=args.claim_type, card_role_filter=args.card_role)
         # User preference: if a paper is deemed useful, provide all claims of that paper.
         # Still allow global token budget as a safety valve.
         kept=[]
@@ -1446,7 +1478,7 @@ def cmd_paper_brief(args):
         p=sec["paper"]
         lines += ["", f"## [{p['score']}] {p['source_id']} — {p.get('title')}", f"Authors/year: {p.get('authors')} ({p.get('year')})", f"Claims: {sec['claim_count']}", ""]
         for c in sec["claims"]:
-            lines.append(f"- **{c['claim_id']}** p.{c.get('page') or '?'} · {c.get('status')} · {c.get('claim_type')}: {c.get('claim')}")
+            lines.append(f"- **{c['claim_id']}** p.{c.get('page') or '?'} · {c.get('status')} · {c.get('card_role')} · {c.get('claim_type')}: {c.get('claim')}")
             if c.get("evidence"):
                 lines.append(f"  - Evidence: {c.get('evidence')}")
         lines.append("")
@@ -1484,7 +1516,7 @@ def card_to_brief_text(card: dict[str, Any], include_scope: bool = True) -> str:
 def build_writing_brief(query: str, *, section_type: str | None = None, limit: int = 12,
                         token_budget: int = 1800, source_id: str | None = None,
                         verified_only: bool = False, status: str | None = None,
-                        claim_type: str | None = None, max_per_source: int = 0) -> dict[str, Any]:
+                        claim_type: str | None = None, card_role_filter: str | None = None, max_per_source: int = 0) -> dict[str, Any]:
     inferred_types = SECTION_TYPE_CLAIM_TYPES.get(norm(section_type), []) if section_type else []
     requested_types = split_list(claim_type) or inferred_types
     filters = {
@@ -1492,6 +1524,7 @@ def build_writing_brief(query: str, *, section_type: str | None = None, limit: i
         "verified_only": verified_only,
         "statuses": split_list(status),
         "claim_types": requested_types,
+        "card_roles": split_list(card_role_filter),
     }
     # Retrieve a wider pool, then enforce budget and source diversity.
     pool = retrieve_claims(query, max(limit * 4, 30), "standard", filters)
@@ -1527,7 +1560,7 @@ def build_writing_brief(query: str, *, section_type: str | None = None, limit: i
         "brief_type": "writing_brief",
         "query": query,
         "section_type": section_type,
-        "claim_type_filter": requested_types,
+        "claim_type_filter": requested_types, "card_role_filter": split_list(card_role_filter),
         "token_budget": token_budget,
         "estimated_tokens": used_tokens,
         "selected_count": len(selected),
@@ -1562,7 +1595,7 @@ def render_writing_brief_md(packet: dict[str, Any]) -> str:
     lines += ["", "## Evidence cards", ""]
     for c in packet.get("claims", []):
         lines.append(f"### {c.get('claim_id')} — {c.get('citation_hint')} p.{c.get('page') or '?'}")
-        lines.append(f"- Status/type/grade: `{c.get('status')}` / `{c.get('claim_type')}` / `{c.get('evidence_grade')}`")
+        lines.append(f"- Status/role/type/grade: `{c.get('status')}` / `{c.get('card_role')}` / `{c.get('claim_type')}` / `{c.get('evidence_grade')}`")
         lines.append(f"- Claim: {c.get('claim')}")
         lines.append(f"- Evidence: {c.get('evidence')}")
         if c.get("scope_note"):
@@ -1582,6 +1615,7 @@ def cmd_writing_brief(args):
         verified_only=args.verified_only,
         status=args.status,
         claim_type=args.claim_type,
+        card_role_filter=args.card_role,
         max_per_source=args.max_per_source,
     )
     if args.out:
@@ -2363,7 +2397,7 @@ def main():
     ing=sub.add_parser("ingest"); ing.add_argument("path"); ing.add_argument("--source-id"); ing.add_argument("--title"); ing.add_argument("--authors",default=""); ing.add_argument("--year",default=""); ing.add_argument("--doi",default=""); ing.add_argument("--source-type",default="peer-reviewed article"); ing.add_argument("--disciplines",default=""); ing.add_argument("--geography",default=""); ing.add_argument("--methodology",default=""); ing.add_argument("--theory",default=""); ing.add_argument("--quality",default="unrated"); ing.add_argument("--notes",default=""); ing.set_defaults(func=cmd_ingest)
     imp=sub.add_parser("import-v1"); imp.add_argument("v1_path"); imp.set_defaults(func=cmd_import_v1)
     mark=sub.add_parser("mark-claim"); mark.add_argument("quote", nargs="?"); mark.add_argument("--text"); mark.add_argument("--source-id"); mark.add_argument("--claim-id"); mark.add_argument("--claim"); mark.add_argument("--claim-representation", choices=["source_quote","lightly_normalized_source","paraphrase","source_range"]); mark.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); mark.add_argument("--constructs"); mark.add_argument("--rq-tags"); mark.add_argument("--discipline"); mark.add_argument("--geography"); mark.add_argument("--methodology"); mark.add_argument("--scope-note"); mark.add_argument("--confidence", choices=["low","medium","high"], default="high"); mark.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); mark.add_argument("--allow-duplicate", action="store_true"); mark.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); mark.add_argument("--json", action="store_true"); mark.set_defaults(func=cmd_mark_claim)
-    ret=sub.add_parser("retrieve"); ret.add_argument("query"); ret.add_argument("--limit", type=int, default=8); ret.add_argument("--source-id"); ret.add_argument("--verified-only", action="store_true"); ret.add_argument("--status"); ret.add_argument("--claim-type"); ret.add_argument("--fields", choices=["minimal","standard","full"], default="minimal"); ret.add_argument("--json", action="store_true"); ret.set_defaults(func=cmd_retrieve)
+    ret=sub.add_parser("retrieve"); ret.add_argument("query"); ret.add_argument("--limit", type=int, default=8); ret.add_argument("--source-id"); ret.add_argument("--verified-only", action="store_true"); ret.add_argument("--status"); ret.add_argument("--claim-type"); ret.add_argument("--card-role", help="Filter by card role, e.g. result_claim, method_card, background_card"); ret.add_argument("--fields", choices=["minimal","standard","full"], default="minimal"); ret.add_argument("--json", action="store_true"); ret.set_defaults(func=cmd_retrieve)
     ctx=sub.add_parser("context"); ctx.add_argument("claim_id"); ctx.add_argument("--mode", choices=["sentence","char","full"], default="sentence"); ctx.add_argument("--sentence-radius", type=int, default=1, help="Sentence radius around the claim sentence within the claim paragraph"); ctx.add_argument("--outside-paragraph", action="store_true", help="Allow sentence expansion into neighbouring paragraphs"); ctx.add_argument("--window", type=int, default=500, help="Character window for --mode char only"); ctx.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); ctx.add_argument("--json", action="store_true"); ctx.set_defaults(func=cmd_context)
     stxt=sub.add_parser("source-text", help="Read an entire source text, a truncated prefix, or an exact char range")
     stxt.add_argument("source_id"); stxt.add_argument("--range", help="Character range START:END or START-END"); stxt.add_argument("--max-chars", type=int, default=0); stxt.add_argument("--json", action="store_true"); stxt.set_defaults(func=cmd_source_text)
@@ -2380,10 +2414,10 @@ def main():
     ps=sub.add_parser("paper-search", help="Rank papers by one vector per paper")
     ps.add_argument("query"); ps.add_argument("--limit", type=int, default=5); ps.add_argument("--json", action="store_true"); ps.set_defaults(func=cmd_paper_search)
     pb=sub.add_parser("paper-brief", help="Rank papers by paper vector, then provide claim inventory for selected papers")
-    pb.add_argument("query"); pb.add_argument("--paper-limit", type=int, default=3); pb.add_argument("--token-budget", type=int, default=6000); pb.add_argument("--verified-only", action="store_true"); pb.add_argument("--status"); pb.add_argument("--claim-type"); pb.add_argument("--json", action="store_true"); pb.set_defaults(func=cmd_paper_brief)
+    pb.add_argument("query"); pb.add_argument("--paper-limit", type=int, default=3); pb.add_argument("--token-budget", type=int, default=6000); pb.add_argument("--verified-only", action="store_true"); pb.add_argument("--status"); pb.add_argument("--claim-type"); pb.add_argument("--card-role", help="Filter by card role, e.g. result_claim, method_card, background_card"); pb.add_argument("--json", action="store_true"); pb.set_defaults(func=cmd_paper_brief)
     chap=sub.add_parser("chapter-brief"); chap.add_argument("profile"); chap.add_argument("--limit", type=int, default=10); chap.add_argument("--json", action="store_true"); chap.set_defaults(func=cmd_chapter_brief)
     wb=sub.add_parser("writing-brief", help="Build a compact, budgeted evidence packet for an LLM/human writing a paragraph/section")
-    wb.add_argument("query"); wb.add_argument("--section-type", choices=sorted(SECTION_TYPE_CLAIM_TYPES.keys())); wb.add_argument("--limit", type=int, default=10); wb.add_argument("--token-budget", type=int, default=1800); wb.add_argument("--source-id"); wb.add_argument("--verified-only", action="store_true"); wb.add_argument("--status"); wb.add_argument("--claim-type"); wb.add_argument("--max-per-source", type=int, default=0); wb.add_argument("--json", action="store_true"); wb.add_argument("--out"); wb.set_defaults(func=cmd_writing_brief)
+    wb.add_argument("query"); wb.add_argument("--section-type", choices=sorted(SECTION_TYPE_CLAIM_TYPES.keys())); wb.add_argument("--limit", type=int, default=10); wb.add_argument("--token-budget", type=int, default=1800); wb.add_argument("--source-id"); wb.add_argument("--verified-only", action="store_true"); wb.add_argument("--status"); wb.add_argument("--claim-type"); wb.add_argument("--card-role", help="Filter by writing role, e.g. result_claim or policy_design_card"); wb.add_argument("--max-per-source", type=int, default=0); wb.add_argument("--json", action="store_true"); wb.add_argument("--out"); wb.set_defaults(func=cmd_writing_brief)
     rev=sub.add_parser("review"); rev.add_argument("claim_id"); rev.add_argument("status", choices=sorted(STATUSES)); rev.add_argument("--note"); rev.add_argument("--actor"); rev.set_defaults(func=cmd_review)
     rel=sub.add_parser("relate", help="Create or update a relation between two claims")
     rel.add_argument("claim_a"); rel.add_argument("claim_b"); rel.add_argument("relation_type", choices=sorted(RELATION_TYPES)); rel.add_argument("--relation-id"); rel.add_argument("--note"); rel.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); rel.set_defaults(func=cmd_relate)

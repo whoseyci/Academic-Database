@@ -80,6 +80,62 @@ def evidence_grade(claim):
     return "D"
 
 
+def card_role(claim):
+    ct=(claim.get("claim_type") or "unknown").lower()
+    return {
+        "empirical finding": "result_claim",
+        "methodological claim": "method_card",
+        "definition": "definition_card",
+        "theoretical claim": "theory_card",
+        "policy implication": "policy_design_card",
+        "limitation": "limitation_card",
+        "background": "background_card",
+        "contradiction": "contradiction_card",
+    }.get(ct, "unknown_card")
+
+
+def paragraph_bounds(text, start, end):
+    left=text.rfind("\n\n",0,start); right=text.find("\n\n",end)
+    return (0 if left<0 else left+2, len(text) if right<0 else right)
+
+
+def sentence_spans(text, base=0):
+    spans=[]; st=0
+    for m in re.finditer(r"(?<=[.!?])\s+(?=[A-Z0-9\"“])|\n(?=\s*[-*]\s+)", text):
+        en=m.start(); sent=text[st:en].strip()
+        if sent:
+            raw_start=base+st+(len(text[st:en])-len(text[st:en].lstrip()))
+            spans.append((raw_start, base+en, sent))
+        st=m.end()
+    tail=text[st:].strip()
+    if tail:
+        raw_start=base+st+(len(text[st:])-len(text[st:].lstrip()))
+        spans.append((raw_start, base+len(text), tail))
+    return spans
+
+
+def sentence_context_snippet(text, start, end, radius=1):
+    if not text or start is None:
+        return ""
+    try:
+        start=int(start); end=int(end)
+    except Exception:
+        return ""
+    pstart, pend=paragraph_bounds(text,start,end)
+    sents=sentence_spans(text[pstart:pend], pstart)
+    if not sents:
+        return text[pstart:pend].strip()
+    idx=None
+    for i,(ss,se,_sent) in enumerate(sents):
+        if ss <= start <= se or (start <= ss and end >= ss):
+            idx=i; break
+    if idx is None:
+        idx=min(range(len(sents)), key=lambda i: abs(sents[i][0]-start))
+    lo=max(0,idx-radius); hi=min(len(sents),idx+radius+1)
+    return text[sents[lo][0]:sents[hi-1][1]].strip()
+
+
+
 def main():
     DOCS.mkdir(exist_ok=True)
     DATA.mkdir(parents=True, exist_ok=True)
@@ -106,9 +162,7 @@ def main():
             start = int(start); end = int(end)
         except Exception:
             start = end = 0
-        context = ""
-        if text and start >= 0:
-            context = text[max(0, start - 450): min(len(text), end + 450)]
+        context = sentence_context_snippet(text, start, end, radius=1) if text and start >= 0 else ""
         tags = tags_by_claim[c["claim_id"]]
         topic = infer_topic(c, tags)
         claim_cards.append({
@@ -122,6 +176,7 @@ def main():
             "evidence": c.get("evidence", ""),
             "claim_representation": c.get("claim_representation", ""),
             "claim_type": c.get("claim_type", ""),
+            "card_role": card_role(c),
             "page": c.get("page", ""),
             "page_status": c.get("page_status", ""),
             "verification_status": c.get("verification_status", ""),
@@ -142,6 +197,7 @@ def main():
         "claim_count": len(claim_cards),
         "status_counts": Counter(c["verification_status"] for c in claim_cards),
         "claim_type_counts": Counter(c["claim_type"] for c in claim_cards),
+        "card_role_counts": Counter(c["card_role"] for c in claim_cards),
         "topic_counts": Counter(c["topic"] for c in claim_cards),
         "year_counts": Counter(str(s.get("year", "")) for s in sources if s.get("year")),
         "representation_counts": Counter(c["claim_representation"] for c in claim_cards),
