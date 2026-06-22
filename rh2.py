@@ -298,6 +298,29 @@ def init_db(quiet: bool=False) -> None:
     CREATE INDEX IF NOT EXISTS idx_cls_context ON citation_location_suggestions(context_id);
     CREATE INDEX IF NOT EXISTS idx_cls_target ON citation_location_suggestions(target_type, target_id);
     CREATE INDEX IF NOT EXISTS idx_cls_status ON citation_location_suggestions(status);
+    CREATE TABLE IF NOT EXISTS source_card_suggestions (
+        suggestion_id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        target_type TEXT,
+        char_start INTEGER,
+        char_end INTEGER,
+        page_start TEXT,
+        page_end TEXT,
+        heading TEXT,
+        section_role TEXT,
+        suggested_claim_type TEXT,
+        suggested_card_role TEXT,
+        score REAL,
+        score_json TEXT,
+        text TEXT,
+        status TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_scs_source ON source_card_suggestions(source_id);
+    CREATE INDEX IF NOT EXISTS idx_scs_status ON source_card_suggestions(status);
+    CREATE INDEX IF NOT EXISTS idx_scs_offsets ON source_card_suggestions(source_id, char_start, char_end);
     CREATE TABLE IF NOT EXISTS query_cache (
         query_hash TEXT PRIMARY KEY,
         query TEXT,
@@ -448,10 +471,56 @@ def chunk_spans(source_id: str, text: str, max_chars: int=2200, overlap: int=250
     return rows
 
 
-def ingest_source(path: Path, source_id: str, meta: dict[str, Any]) -> None:
+def parse_map_spans(source_id: str, text: str, parse_map: dict[str, Any]|None) -> list[dict[str, Any]]:
+    """Convert a parser sidecar map into offset-preserving spans.
+
+    Expected optional keys: pages[{page,char_start,char_end}], sections[{heading,level,char_start,char_end}],
+    tables/figures with similar offsets. This is intentionally permissive so your MD parser can evolve.
+    """
+    if not parse_map:
+        return []
+    offsets=line_offsets(text); rows=[]
+    def safe_int(x, default=0):
+        try: return int(x)
+        except Exception: return default
+    for i,pag in enumerate(parse_map.get("pages", []) or [], 1):
+        start=max(0, safe_int(pag.get("char_start"), 0)); end=min(len(text), safe_int(pag.get("char_end"), len(text)))
+        if end <= start: continue
+        page=str(pag.get("page") or pag.get("page_number") or i)
+        rows.append({"span_id": f"PAGE-{source_id}-{page}", "source_id": source_id, "kind": "page", "ref_id": page,
+            "char_start": start, "char_end": end, "line_start": line_no(offsets,start), "line_end": line_no(offsets,max(start,end-1)),
+            "page_start": page, "page_end": page, "heading": "", "text": text[start:end]})
+    for i,sec in enumerate(parse_map.get("sections", []) or [], 1):
+        start=max(0, safe_int(sec.get("char_start"), 0)); end=min(len(text), safe_int(sec.get("char_end"), len(text)))
+        if end <= start: continue
+        heading=str(sec.get("heading") or sec.get("title") or f"section {i}").strip()
+        level=str(sec.get("level") or "")
+        sid=f"SECTION-{source_id}-{i:04d}"
+        page_start,_=page_for_char(source_id, start)
+        page_end,_=page_for_char(source_id, max(start,end-1))
+        rows.append({"span_id": sid, "source_id": source_id, "kind": "section", "ref_id": sid,
+            "char_start": start, "char_end": end, "line_start": line_no(offsets,start), "line_end": line_no(offsets,max(start,end-1)),
+            "page_start": page_start or "", "page_end": page_end or "", "heading": heading if not level else f"L{level}: {heading}", "text": text[start:end]})
+    for kind in ["tables", "figures"]:
+        for i,obj in enumerate(parse_map.get(kind, []) or [], 1):
+            start=max(0, safe_int(obj.get("char_start"), 0)); end=min(len(text), safe_int(obj.get("char_end"), len(text)))
+            if end <= start: continue
+            sid=f"{kind[:-1].upper()}-{source_id}-{i:04d}"
+            page_start,_=page_for_char(source_id, start)
+            page_end,_=page_for_char(source_id, max(start,end-1))
+            rows.append({"span_id": sid, "source_id": source_id, "kind": kind[:-1], "ref_id": str(obj.get("id") or sid),
+                "char_start": start, "char_end": end, "line_start": line_no(offsets,start), "line_end": line_no(offsets,max(start,end-1)),
+                "page_start": page_start or "", "page_end": page_end or "", "heading": str(obj.get("caption") or obj.get("heading") or ""), "text": text[start:end]})
+    return rows
+
+
+def ingest_source(path: Path, source_id: str, meta: dict[str, Any], parse_map_path: Path|None=None) -> None:
     init_db(True)
     text=path.read_text(encoding="utf-8", errors="ignore")
     blob_path, source_hash = write_blob(source_id, text)
+    parse_map = None
+    if parse_map_path:
+        parse_map = json.loads(Path(parse_map_path).read_text(encoding="utf-8"))
     conn=db(); cur=conn.cursor()
     cur.execute("""INSERT OR REPLACE INTO sources VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
         source_id, meta.get("title") or path.stem, meta.get("authors",""), str(meta.get("year", "")), meta.get("doi",""),
@@ -461,7 +530,10 @@ def ingest_source(path: Path, source_id: str, meta: dict[str, Any]) -> None:
     ))
     # Replace spans for this source.
     cur.execute("DELETE FROM spans WHERE source_id=?", (source_id,))
-    for sp in page_spans(source_id, text) + paragraph_spans(source_id, text) + chunk_spans(source_id, text):
+    parser_spans=parse_map_spans(source_id, text, parse_map)
+    parser_pages=[sp for sp in parser_spans if sp.get("kind") == "page"]
+    auto_pages=[] if parser_pages else page_spans(source_id, text)
+    for sp in parser_spans + auto_pages + paragraph_spans(source_id, text) + chunk_spans(source_id, text):
         add_span(cur, **sp)
     conn.commit(); conn.close()
 
@@ -864,13 +936,13 @@ def cmd_ingest(args):
         tmp=ROOT / "_tmp_clean_ingest.md"
         tmp.write_text(cleaned, encoding="utf-8")
         try:
-            ingest_source(tmp, sid, meta)
+            ingest_source(tmp, sid, meta, Path(args.parse_map) if args.parse_map else None)
         finally:
             try: tmp.unlink()
             except Exception: pass
         print(f"Ingested {sid} (cleaned markup)")
     else:
-        ingest_source(Path(args.path), sid, meta)
+        ingest_source(Path(args.path), sid, meta, Path(args.parse_map) if args.parse_map else None)
         print(f"Ingested {sid}")
 
 
@@ -3268,6 +3340,39 @@ def candidate_page_for_span(source_id: str, start: int|None) -> str|None:
         return None
 
 
+def source_card_suggestion_overlap_bonus(conn: sqlite3.Connection, source_id: str, start: int|None, end: int|None) -> tuple[float, str]:
+    """Small tie-breaker when a citation target overlaps an independently suggested source card.
+
+    Deliberately tiny: source-card suggestions should not overpower direct citation-context matching.
+    """
+    if start is None or end is None:
+        return 0.0, ""
+    try:
+        start_i=int(start); end_i=int(end)
+    except Exception:
+        return 0.0, ""
+    try:
+        rows=conn.execute("""
+            SELECT suggestion_id, score, char_start, char_end FROM source_card_suggestions
+            WHERE source_id=? AND status!='rejected' AND char_start IS NOT NULL AND char_end IS NOT NULL
+              AND NOT (char_end < ? OR char_start > ?)
+            ORDER BY score DESC LIMIT 5
+        """, (source_id, start_i, end_i)).fetchall()
+    except sqlite3.OperationalError:
+        return 0.0, ""
+    best=None; best_overlap=0.0
+    span_len=max(1, end_i-start_i)
+    for r in rows:
+        rs=int(r["char_start"]); re_=int(r["char_end"])
+        inter=max(0, min(end_i,re_) - max(start_i,rs))
+        overlap=inter / max(1, min(span_len, re_-rs))
+        if overlap > best_overlap:
+            best=r; best_overlap=overlap
+    if not best or best_overlap < 0.55:
+        return 0.0, ""
+    return min(0.035, float(best["score"] or 0)*0.025), f"source_card_suggestion:{best['suggestion_id']}"
+
+
 def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_claims: bool=True, include_spans: bool=True, min_score: float=0.05) -> dict[str, Any]:
     init_db(True)
     conn=db(); ctx=conn.execute("SELECT * FROM citation_contexts WHERE context_id=?", (context_id,)).fetchone()
@@ -3331,11 +3436,21 @@ def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_cla
                 # Add tight sentence-level windows first; paragraph/chunk remains fallback.
                 if kind == "paragraph":
                     for sw in sentence_window_candidates(target_source, d, source_text, query, locator, c.get("citation_function") or ""):
+                        boost, boost_why=source_card_suggestion_overlap_bonus(conn, target_source, sw.get("char_start"), sw.get("char_end"))
+                        if boost:
+                            sw["score"] = round(sw["score"] + boost, 4)
+                            sw.setdefault("score_json", {}).setdefault("why", []).append(boost_why)
+                            sw.setdefault("score_json", {})["source_card_suggestion_boost"] = round(boost,4)
                         if sw["score"] >= min_score:
                             sw.update({"suggested_relation": relation, "status": "candidate_location"})
                             suggestions.append(sw)
                 page=d.get("page_start") or candidate_page_for_span(target_source, start) or ""
                 score, why=citation_candidate_score(query, text, page=page, locator=locator, function=c.get("citation_function") or "", heading=heading, kind=kind)
+                boost, boost_why=source_card_suggestion_overlap_bonus(conn, target_source, start, end)
+                if boost:
+                    score += boost
+                    why.setdefault("why", []).append(boost_why)
+                    why["source_card_suggestion_boost"] = round(boost,4)
                 if score >= min_score:
                     suggestions.append({"target_type":kind, "target_id":d.get("span_id"), "source_id":target_source, "char_start":start, "char_end":end, "page_start":page, "page_end":d.get("page_end") or page or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":source_range_handle(target_source, int(start), int(end))})
     conn.close()
@@ -3447,10 +3562,222 @@ def cmd_accept_citation_location(args):
     print(f"accepted {args.suggestion_id}" + (f" -> relation {rid}" if rid else ""))
 
 
+def section_role(heading: str, text: str="") -> str:
+    h=norm(heading); sample=norm((heading or "") + " " + (text or "")[:900])
+    if re.search(r"\b(references|bibliography)\b", h): return "references"
+    if re.search(r"\b(abstract)\b", h): return "abstract"
+    if re.search(r"\b(method|data|model|approach|materials)\b", sample): return "methods"
+    if re.search(r"\b(result|finding|empirical|analysis)\b", sample): return "results"
+    if re.search(r"\b(discussion|implication|policy|recommend|conclusion)\b", sample): return "discussion"
+    if re.search(r"\b(limitation|caveat|future research|external validity|validity)\b", sample): return "limitations"
+    if re.search(r"\b(theory|framework|conceptual|definition|defined as|taxonomy|classif)\b", sample): return "theory"
+    if re.search(r"\b(introduction|background|literature|review|context)\b", sample): return "background"
+    return "body"
+
+
+SOURCE_CARD_CUE_PATTERNS = [
+    ("definition", re.compile(r"\b(refers to|is defined as|we define|means|relates to)\b", re.I), 1.0),
+    ("methodological claim", re.compile(r"\b(we review|we organise|we classify|we distinguish|method|framework|taxonomy|model|data)\b", re.I), 0.75),
+    ("empirical finding", re.compile(r"\b(associated with|correlated with|increases?|decreases?|positively|negatively|significant|evidence shows|review shows|found to|influence[s]? adoption)\b", re.I), 1.0),
+    ("policy implication", re.compile(r"\b(policy|policies|should|recommend|intervention|design|scheme|payments|subsidy|nudge)\b", re.I), 0.85),
+    ("limitation", re.compile(r"\b(limitation|caveat|uncertain|validity|lack of|scant|few studies|not covered|cannot|may not)\b", re.I), 0.8),
+    ("theoretical claim", re.compile(r"\b(theory|mechanism|bias|decision-making|behavioural factors|cognitive|social|dispositional)\b", re.I), 0.7),
+]
+
+
+def suggest_claim_type_and_role(text: str, heading: str="") -> tuple[str, str, list[str]]:
+    scores={}; reasons=[]
+    hay=f"{heading}\n{text}"
+    for ctype, pat, weight in SOURCE_CARD_CUE_PATTERNS:
+        hits=pat.findall(hay)
+        if hits:
+            scores[ctype]=scores.get(ctype,0)+weight+min(0.5, len(hits)*0.08)
+            reasons.append(f"{ctype}:{len(hits)}")
+    role=section_role(heading, text)
+    if role == "methods": scores["methodological claim"]=scores.get("methodological claim",0)+0.45
+    if role in {"results", "discussion"}: scores["empirical finding"]=scores.get("empirical finding",0)+0.18
+    if role == "limitations": scores["limitation"]=scores.get("limitation",0)+0.45
+    if role == "theory": scores["theoretical claim"]=scores.get("theoretical claim",0)+0.35
+    if not scores:
+        return "background", "background_card", ["fallback_background"]
+    ctype=max(scores, key=scores.get)
+    fake={"claim_type":ctype, "verification_status":"candidate_needs_review"}
+    return ctype, card_role(fake), reasons
+
+
+def source_card_candidate_score(text: str, heading: str="", kind: str="") -> tuple[float, dict[str, Any]]:
+    words=re.findall(r"\b[A-Za-z][A-Za-z-]+\b", text or "")
+    if len(words) < 18:
+        return 0.0, {"reject":"too_short"}
+    if len(words) > 180:
+        length_score=0.55
+    elif 28 <= len(words) <= 95:
+        length_score=1.0
+    else:
+        length_score=0.78
+    ctype, role, reasons=suggest_claim_type_and_role(text, heading)
+    cue_strength=0.18*len(reasons)
+    domain_terms=citation_terms(text)
+    domain_density=min(1.0, len([t for t in domain_terms if t in DOMAIN_IMPORTANCE]) / 8)
+    penalty, penalty_reasons=span_quality_penalty(text, heading, kind)
+    sr=section_role(heading, text)
+    section_bonus={"methods":0.08,"results":0.12,"discussion":0.14,"limitations":0.12,"theory":0.10,"background":0.04,"body":0.0}.get(sr,0.0)
+    score=max(0.0, 0.35*length_score + cue_strength + 0.22*domain_density + section_bonus - penalty)
+    return score, {"word_count":len(words), "length_score":round(length_score,3), "cue_reasons":reasons, "domain_density":round(domain_density,3), "section_role":sr, "section_bonus":section_bonus, "penalty":penalty, "penalty_reasons":penalty_reasons, "suggested_claim_type":ctype, "suggested_card_role":role}
+
+
+def source_card_suggestion_candidates(source_id: str, *, limit: int=80, min_score: float=0.25) -> list[dict[str, Any]]:
+    init_db(True)
+    text=read_source_text(source_id)
+    intro=source_intro_start(text); back=source_backmatter_start(text)
+    conn=db(); spans=[dict(r) for r in conn.execute("SELECT * FROM spans WHERE source_id=? AND kind IN ('paragraph','chunk','section') ORDER BY char_start", (source_id,)).fetchall()]; conn.close()
+    out=[]
+    for sp in spans:
+        start=sp.get("char_start"); end=sp.get("char_end")
+        if start is None or end is None: continue
+        start=int(start); end=int(end)
+        if start < intro or start >= back: continue
+        block=text[start:end].strip()
+        if not block or is_reference_or_backmatter(sp.get("heading") or "", block): continue
+        # Sentence windows from paragraphs/sections.
+        if sp.get("kind") in {"paragraph", "section"}:
+            for i,(ss,se,sent) in enumerate(sentence_spans(block, start)):
+                # exact sentence
+                score, why=source_card_candidate_score(sent, sp.get("heading") or "", "sentence_window")
+                if score >= min_score:
+                    out.append({"source_id":source_id,"target_type":"sentence_window","char_start":ss,"char_end":se,"page_start":candidate_page_for_span(source_id, ss) or "","page_end":candidate_page_for_span(source_id, se-1) or "","heading":sp.get("heading") or "","section_role":why.get("section_role"),"suggested_claim_type":why.get("suggested_claim_type"),"suggested_card_role":why.get("suggested_card_role"),"score":round(score+0.04,4),"score_json":why,"text":sent,"status":"candidate"})
+                # two-sentence window
+                sents=sentence_spans(block, start)
+                if i+1 < len(sents):
+                    wstart=ss; wend=sents[i+1][1]; wtxt=text[wstart:wend].strip()
+                    score, why=source_card_candidate_score(wtxt, sp.get("heading") or "", "sentence_window")
+                    if score >= min_score:
+                        out.append({"source_id":source_id,"target_type":"sentence_window","char_start":wstart,"char_end":wend,"page_start":candidate_page_for_span(source_id, wstart) or "","page_end":candidate_page_for_span(source_id, wend-1) or "","heading":sp.get("heading") or "","section_role":why.get("section_role"),"suggested_claim_type":why.get("suggested_claim_type"),"suggested_card_role":why.get("suggested_card_role"),"score":round(score,4),"score_json":why,"text":wtxt,"status":"candidate"})
+        # Paragraph as fallback if it is not too broad.
+        if sp.get("kind") == "paragraph":
+            score, why=source_card_candidate_score(block, sp.get("heading") or "", "paragraph")
+            if score >= min_score and why.get("word_count",999) <= 170:
+                out.append({"source_id":source_id,"target_type":"paragraph","char_start":start,"char_end":end,"page_start":candidate_page_for_span(source_id, start) or "","page_end":candidate_page_for_span(source_id, end-1) or "","heading":sp.get("heading") or "","section_role":why.get("section_role"),"suggested_claim_type":why.get("suggested_claim_type"),"suggested_card_role":why.get("suggested_card_role"),"score":round(score,4),"score_json":why,"text":block,"status":"candidate"})
+    # Deduplicate overlapping identical texts/ranges and avoid returning many windows from same place.
+    dedup={}
+    for c in out:
+        key=(c["char_start"], c["char_end"])
+        if key not in dedup or c["score"] > dedup[key]["score"]:
+            dedup[key]=c
+    ranked=sorted(dedup.values(), key=lambda x: x["score"], reverse=True)
+    return ranked[:limit]
+
+
+def store_source_card_suggestions(candidates: list[dict[str, Any]]) -> list[str]:
+    init_db(True)
+    conn=db(); ids=[]
+    for c in candidates:
+        sid=f"SCSUG-{sha1_short(c['source_id'] + str(c['char_start']) + str(c['char_end']) + c.get('suggested_card_role',''))[:14]}"
+        conn.execute("""INSERT OR REPLACE INTO source_card_suggestions
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            sid, c["source_id"], c.get("target_type"), c.get("char_start"), c.get("char_end"), c.get("page_start"), c.get("page_end"), c.get("heading"), c.get("section_role"), c.get("suggested_claim_type"), c.get("suggested_card_role"), float(c.get("score") or 0), json.dumps(c.get("score_json") or {}, ensure_ascii=False), c.get("text") or "", c.get("status") or "candidate", now(), now()
+        ))
+        ids.append(sid)
+    conn.commit(); conn.close(); return ids
+
+
+def cmd_suggest_source_cards(args):
+    candidates=source_card_suggestion_candidates(args.source_id, limit=args.limit, min_score=args.min_score)
+    if args.store and candidates:
+        ids=store_source_card_suggestions(candidates)
+        for sid,c in zip(ids,candidates): c["suggestion_id"]=sid
+    payload={"source_id":args.source_id,"count":len(candidates),"candidates":candidates}
+    if args.json: print_json(payload)
+    else:
+        print(f"Source-card suggestions: {args.source_id} ({len(candidates)})")
+        for c in candidates[:args.limit]:
+            sid=f" {c.get('suggestion_id')}" if c.get("suggestion_id") else ""
+            print(f"- {sid} score:{c['score']} {c.get('suggested_card_role')} / {c.get('suggested_claim_type')} {source_range_handle(c['source_id'], c['char_start'], c['char_end'])}")
+            print(f"  {short(c.get('text'), 260)}")
+
+
+def cmd_source_card_suggestions(args):
+    init_db(True)
+    conn=db(); params=[]; where=[]
+    if args.source_id: where.append("source_id=?"); params.append(args.source_id)
+    if args.status: where.append("status=?"); params.append(args.status)
+    if args.card_role: where.append("suggested_card_role=?"); params.append(args.card_role)
+    sql="SELECT * FROM source_card_suggestions" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY score DESC LIMIT ?"
+    rows=[dict(r) for r in conn.execute(sql, (*params,args.limit)).fetchall()]
+    conn.close()
+    for r in rows:
+        try: r["score_json"]=json.loads(r.get("score_json") or "{}")
+        except Exception: pass
+    if args.json: print_json(rows)
+    else:
+        for r in rows:
+            print(f"{r['suggestion_id']} | {r['source_id']} {r['suggested_card_role']} {r['suggested_claim_type']} score:{r['score']} {r['status']} {source_range_handle(r['source_id'], r['char_start'], r['char_end'])}")
+            print(f"  {short(r.get('text'), 220)}")
+
+
+def cmd_accept_source_card_suggestion(args):
+    init_db(True)
+    conn=db(); row=conn.execute("SELECT * FROM source_card_suggestions WHERE suggestion_id=?", (args.suggestion_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown suggestion_id: {args.suggestion_id}")
+    s=dict(row); conn.close()
+    claim={"claim_id": args.claim_id or next_claim_id(s["source_id"]), "source_id": s["source_id"], "claim": args.claim or s["text"], "evidence": s["text"],
+        "claim_representation": "source_range", "claim_type": args.claim_type or s.get("suggested_claim_type") or "unknown", "page": s.get("page_start") or "",
+        "page_status": "page_matched_from_source_span" if s.get("page_start") else "needs_page_check", "verification_status": args.status,
+        "confidence": args.confidence, "scope_note": args.scope_note or f"Accepted from source-card suggestion {args.suggestion_id}.",
+        "char_start": s.get("char_start"), "char_end": s.get("char_end"), "line_start": None, "line_end": None, "extraction_mode": "source_card_suggestion"}
+    try:
+        offs=line_offsets(read_source_text(s["source_id"])); claim["line_start"]=line_no(offs, int(s["char_start"])); claim["line_end"]=line_no(offs, int(s["char_end"]))
+    except SystemExit:
+        pass
+    upsert_claim(claim, {})
+    conn=db(); conn.execute("UPDATE source_card_suggestions SET status='accepted', updated_at=? WHERE suggestion_id=?", (now(), args.suggestion_id)); conn.commit(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (claim["claim_id"],)).fetchone(); conn.close()
+    print_json({"accepted": args.suggestion_id, "claim": claim_card(row,"full")}) if args.json else print(f"Accepted {args.suggestion_id} -> {claim['claim_id']}")
+
+
+def cmd_reject_source_card_suggestion(args):
+    init_db(True)
+    conn=db(); row=conn.execute("SELECT suggestion_id FROM source_card_suggestions WHERE suggestion_id=?", (args.suggestion_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown suggestion_id: {args.suggestion_id}")
+    conn.execute("UPDATE source_card_suggestions SET status='rejected', updated_at=? WHERE suggestion_id=?", (now(), args.suggestion_id))
+    conn.commit(); conn.close(); print(f"{args.suggestion_id} -> rejected" + (f" ({args.label})" if args.label else ""))
+
+
+def cmd_repair_citation_contexts(args):
+    init_db(True)
+    conn=db(); params=[]; where=[]
+    if args.source_id:
+        where.append("citing_source_id=?"); params.append(args.source_id)
+    if args.context_id:
+        where.append("context_id=?"); params.append(args.context_id)
+    sql="SELECT * FROM citation_contexts" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY citing_source_id, context_id LIMIT ?"
+    rows=[dict(r) for r in conn.execute(sql, (*params,args.limit)).fetchall()]
+    changes=[]
+    for r in rows:
+        repaired=repaired_citation_context(r)
+        old=r.get("context_text") or ""
+        if repaired and repaired.strip() != old.strip():
+            changes.append({"context_id": r["context_id"], "old": old, "new": repaired, "old_len": len(old), "new_len": len(repaired)})
+            if not args.dry_run:
+                note=(r.get("verification_note") or "").strip()
+                note=(note + " | " if note else "") + "context_text repaired to sentence boundary"
+                conn.execute("UPDATE citation_contexts SET context_text=?, verification_note=?, updated_at=? WHERE context_id=?", (repaired, note, now(), r["context_id"]))
+    if not args.dry_run:
+        conn.commit()
+    conn.close()
+    payload={"dry_run": args.dry_run, "checked": len(rows), "changed": len(changes), "changes": changes[:args.show]}
+    if args.json: print_json(payload)
+    else:
+        print(f"Citation context repair {'dry-run ' if args.dry_run else ''}checked {len(rows)} contexts; changed {len(changes)}")
+        for ch in changes[:args.show]:
+            print(f"- {ch['context_id']} {ch['old_len']} -> {ch['new_len']}")
+            print(f"  old: {short(ch['old'], 180)}")
+            print(f"  new: {short(ch['new'], 220)}")
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
-    tables=["sources","spans","source_cards","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
+    tables=["sources","spans","source_cards","source_card_suggestions","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
     stats={}
     for t in tables:
         try: stats[t]=cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -3475,7 +3802,7 @@ def main():
     p=argparse.ArgumentParser(description="Research Harness V2")
     sub=p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init").set_defaults(func=cmd_init)
-    ing=sub.add_parser("ingest"); ing.add_argument("path"); ing.add_argument("--source-id"); ing.add_argument("--title"); ing.add_argument("--authors",default=""); ing.add_argument("--year",default=""); ing.add_argument("--doi",default=""); ing.add_argument("--source-type",default="peer-reviewed article"); ing.add_argument("--disciplines",default=""); ing.add_argument("--geography",default=""); ing.add_argument("--methodology",default=""); ing.add_argument("--theory",default=""); ing.add_argument("--quality",default="unrated"); ing.add_argument("--notes",default=""); ing.add_argument("--clean-markup", action="store_true", help="Remove harness/Obsidian annotation noise such as ==highlight==, [PAGE UNVERIFIED], and #MA tags before canonical ingest"); ing.set_defaults(func=cmd_ingest)
+    ing=sub.add_parser("ingest"); ing.add_argument("path"); ing.add_argument("--source-id"); ing.add_argument("--title"); ing.add_argument("--authors",default=""); ing.add_argument("--year",default=""); ing.add_argument("--doi",default=""); ing.add_argument("--source-type",default="peer-reviewed article"); ing.add_argument("--disciplines",default=""); ing.add_argument("--geography",default=""); ing.add_argument("--methodology",default=""); ing.add_argument("--theory",default=""); ing.add_argument("--quality",default="unrated"); ing.add_argument("--notes",default=""); ing.add_argument("--clean-markup", action="store_true", help="Remove harness/Obsidian annotation noise such as ==highlight==, [PAGE UNVERIFIED], and #MA tags before canonical ingest"); ing.add_argument("--parse-map", help="Optional parser sidecar JSON with pages/sections/tables/figures char offsets for MD ingest"); ing.set_defaults(func=cmd_ingest)
     imp=sub.add_parser("import-v1"); imp.add_argument("v1_path"); imp.set_defaults(func=cmd_import_v1)
     mark=sub.add_parser("mark-claim"); mark.add_argument("quote", nargs="?"); mark.add_argument("--text"); mark.add_argument("--source-id"); mark.add_argument("--claim-id"); mark.add_argument("--claim"); mark.add_argument("--claim-representation", choices=["source_quote","lightly_normalized_source","paraphrase","source_range"]); mark.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); mark.add_argument("--constructs"); mark.add_argument("--rq-tags"); mark.add_argument("--discipline"); mark.add_argument("--geography"); mark.add_argument("--methodology"); mark.add_argument("--scope-note"); mark.add_argument("--confidence", choices=["low","medium","high"], default="high"); mark.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); mark.add_argument("--allow-duplicate", action="store_true"); mark.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); mark.add_argument("--json", action="store_true"); mark.set_defaults(func=cmd_mark_claim)
     ret=sub.add_parser("retrieve"); ret.add_argument("query"); ret.add_argument("--limit", type=int, default=8); ret.add_argument("--source-id"); ret.add_argument("--verified-only", action="store_true"); ret.add_argument("--status"); ret.add_argument("--claim-type"); ret.add_argument("--card-role", help="Filter by card role, e.g. result_claim, method_card, background_card"); ret.add_argument("--fields", choices=["minimal","standard","full"], default="minimal"); ret.add_argument("--json", action="store_true"); ret.set_defaults(func=cmd_retrieve)
@@ -3520,6 +3847,16 @@ def main():
     aud.add_argument("path"); aud.add_argument("--min-words", type=int, default=14); aud.add_argument("--show-uncited", type=int, default=20); aud.add_argument("--min-sources", type=int, default=3); aud.add_argument("--json", action="store_true"); aud.set_defaults(func=cmd_audit_draft)
     grd=sub.add_parser("evidence-grades", help="List computed claim evidence grades")
     grd.add_argument("--grade", choices=sorted(EVIDENCE_GRADES)); grd.add_argument("--limit", type=int, default=80); grd.add_argument("--json", action="store_true"); grd.set_defaults(func=cmd_evidence_grades)
+    rcc=sub.add_parser("repair-citation-contexts", help="Repair citation contexts to full sentence boundaries when citing source blobs are available")
+    rcc.add_argument("--source-id"); rcc.add_argument("--context-id"); rcc.add_argument("--limit", type=int, default=500); rcc.add_argument("--show", type=int, default=20); rcc.add_argument("--dry-run", action="store_true"); rcc.add_argument("--json", action="store_true"); rcc.set_defaults(func=cmd_repair_citation_contexts)
+    scs=sub.add_parser("suggest-source-cards", help="Suggest source-card candidates from a parsed markdown source")
+    scs.add_argument("source_id"); scs.add_argument("--limit", type=int, default=80); scs.add_argument("--min-score", type=float, default=0.25); scs.add_argument("--store", action="store_true"); scs.add_argument("--json", action="store_true"); scs.set_defaults(func=cmd_suggest_source_cards)
+    lscs=sub.add_parser("source-card-suggestions", help="List stored source-card suggestions")
+    lscs.add_argument("--source-id"); lscs.add_argument("--status"); lscs.add_argument("--card-role", choices=sorted(CARD_ROLES)); lscs.add_argument("--limit", type=int, default=80); lscs.add_argument("--json", action="store_true"); lscs.set_defaults(func=cmd_source_card_suggestions)
+    ascs=sub.add_parser("accept-source-card-suggestion", help="Create a source card from a stored suggestion")
+    ascs.add_argument("suggestion_id"); ascs.add_argument("--claim-id"); ascs.add_argument("--claim"); ascs.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); ascs.add_argument("--scope-note"); ascs.add_argument("--confidence", choices=["low","medium","high"], default="medium"); ascs.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); ascs.add_argument("--json", action="store_true"); ascs.set_defaults(func=cmd_accept_source_card_suggestion)
+    rscs=sub.add_parser("reject-source-card-suggestion", help="Reject a stored source-card suggestion")
+    rscs.add_argument("suggestion_id"); rscs.add_argument("--label", choices=sorted(REVIEW_LABELS)); rscs.set_defaults(func=cmd_reject_source_card_suggestion)
     scl=sub.add_parser("suggest-cited-claim-location", help="Suggest where one citation context is supported in the matched/backtracked source")
     scl.add_argument("context_id"); scl.add_argument("--limit", type=int, default=10); scl.add_argument("--min-score", type=float, default=0.05); scl.add_argument("--store", action="store_true"); scl.add_argument("--no-claims", action="store_true"); scl.add_argument("--no-spans", action="store_true"); scl.add_argument("--json", action="store_true"); scl.set_defaults(func=cmd_suggest_cited_claim_location)
     scls=sub.add_parser("suggest-cited-claim-locations", help="Batch-generate citation location suggestions")

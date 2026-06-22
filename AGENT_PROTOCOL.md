@@ -157,3 +157,31 @@ The ranker uses citation context text, citation function, matched source, existi
 ### Citation-location ranker quality notes
 
 The citation-location ranker now suppresses source material before the Introduction/front-matter boundary and penalizes boilerplate, annotation tags and table-heavy spans. It is still a triage ranker, not a verifier. When testing newly parsed papers, prefer canonical markdown ingested with `--clean-markup` so front matter, `==highlight==`, and `#MA/...` annotations do not pollute lexical matching.
+
+## Source-card suggestion workflow
+
+The harness can now propose source-card candidates from markdown without an LLM. This is a candidate generator, not a verifier.
+
+```bash
+python rh2.py suggest-source-cards SOURCE_ID --store
+python rh2.py source-card-suggestions --source-id SOURCE_ID --card-role result_claim
+python rh2.py accept-source-card-suggestion SCSUG-... --status candidate_needs_review
+python rh2.py reject-source-card-suggestion SCSUG-... --label too_broad
+```
+
+For parser-produced markdown, prefer passing a parse-map sidecar when available:
+
+```bash
+python rh2.py ingest-md paper.md --parse-map paper.parse.json
+# or current equivalent:
+python rh2.py ingest paper.md --parse-map paper.parse.json
+```
+
+The parse map may include `pages`, `sections`, `tables`, and `figures` with `char_start` / `char_end` offsets. These structured spans strengthen source maps, source-card suggestions, and citation-location suggestions.
+
+Before backtracking citations from a noisy parsed source, repair citation contexts where possible:
+
+```bash
+python rh2.py repair-citation-contexts --source-id SOURCE_ID --dry-run
+python rh2.py repair-citation-contexts --source-id SOURCE_ID
+```

@@ -80,6 +80,15 @@ python rh2.py ingest ../uploads/paper.md \
   --quality high
 ```
 
+If your PDF→MD parser emits a sidecar map, ingest it too:
+
+```bash
+python rh2.py ingest ../uploads/paper.md \
+  --source-id Paper_2025 \
+  --parse-map ../uploads/paper.parse.json \
+  --clean-markup
+```
+
 Mark a claim directly from a source sentence:
 
 ```bash
@@ -180,12 +189,21 @@ Reference identities are now stable: DOI-backed references use DOI-derived canon
 Suggest likely support locations inside the backtracked/cited paper:
 
 ```bash
+python rh2.py repair-citation-contexts --source-id Canessa_2024 --dry-run
 python rh2.py suggest-cited-claim-location CITCTX-Canessa_2024-00001 --limit 10
 python rh2.py suggest-cited-claim-location CITCTX-Canessa_2024-00001 --store --json
 # Tip: ingest parsed markdown with --clean-markup before backtracking annotated papers.
 python rh2.py citation-location-suggestions --context-id CITCTX-Canessa_2024-00001
 python rh2.py verify-location CLOC-... accepted --note "Best support location."
 python rh2.py accept-citation-location CLOC-... --citing-claim-id CLAIM_ID --relation-type supports
+```
+
+Suggest source-card candidates directly from a parsed markdown source:
+
+```bash
+python rh2.py suggest-source-cards Dessart_2019 --store
+python rh2.py source-card-suggestions --source-id Dessart_2019 --card-role result_claim
+python rh2.py accept-source-card-suggestion SCSUG-... --status candidate_needs_review
 ```
 
 Audit a draft for claim traceability:
