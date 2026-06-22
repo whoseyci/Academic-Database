@@ -362,6 +362,8 @@ def clean_paper_markup(text: str) -> str:
     # Remove known page/verifier annotations and MA tags inserted during thesis work.
     t=re.sub(r"\[PAGE UNVERIFIED\]", " ", t, flags=re.I)
     t=re.sub(r"\[(?:Abstract-level benchmarks|Explicit TPB definition|Environmental attitudes|Farmer typology|Core quantitative finding|Past participation|Consistent positive|Contract design|Mixed evidence|[^\]]{0,40}RQ[123][^\]]{0,180})\]", " ", t)
+    # Remove remaining curator notes in square brackets while preserving markdown links.
+    t=re.sub(r"\[(?![^\]]+\]\()[^\]]{8,260}\]", " ", t)
     t=re.sub(r"#[A-Za-z0-9_./§-]+", " ", t)
     # Remove leftover repeated blank spacing without destroying paragraph boundaries.
     t=re.sub(r"[ \t]+", " ", t)
@@ -2945,7 +2947,7 @@ def cmd_split_claim(args):
     print_json({"split_from": args.claim_id, "created": created}) if args.json else print(f"Created {len(created)} split claims: {', '.join(created)}")
 
 
-PAGE_LOCATOR_RE = re.compile(r"(?:\bpp?\.?\s*|[:;,]\s*)(\d{1,5})(?:\s*[–—-]\s*(\d{1,5}))?", re.I)
+PAGE_LOCATOR_RE = re.compile(r"(?:\bpp?\.?\s*(\d{1,5})(?:\s*[–—-]\s*(\d{1,5}))?|\b\d{4}[a-z]?\s*:\s*(\d{1,5})(?:\s*[–—-]\s*(\d{1,5}))?)", re.I)
 
 
 def parse_citation_locator(*texts: str) -> dict[str, Any]:
@@ -2953,7 +2955,7 @@ def parse_citation_locator(*texts: str) -> dict[str, Any]:
     m=PAGE_LOCATOR_RE.search(raw)
     if not m:
         return {"locator_raw":"", "page_start":"", "page_end":"", "pages":[]}
-    start=m.group(1); end=m.group(2) or start
+    start=m.group(1) or m.group(3); end=m.group(2) or m.group(4) or start
     pages=[]
     try:
         a,b=int(start),int(end)
@@ -2968,6 +2970,7 @@ CITATION_STOPWORDS = {
     "and", "or", "the", "this", "that", "these", "those", "with", "from", "into", "onto", "over", "under", "between", "among",
     "have", "has", "had", "been", "being", "were", "was", "are", "is", "their", "there", "where", "which", "while", "within",
     "farmers", "farmer", "farming", "agricultural", "agriculture", "study", "studies", "paper", "authors", "research", "literature",
+    "variables", "variable", "describing", "importance", "important", "place", "play", "played", "role", "measure", "regarding", "more",
     "dessart", "canessa", "et", "al", "however", "also", "e.g", "e", "g", "such", "may", "might", "could", "would", "should",
 }
 
@@ -2978,6 +2981,26 @@ DOMAIN_IMPORTANCE = {
     "objectives": 1.8, "communication": 2.0, "interpersonal": 2.2, "adoption": 1.6, "participation": 1.6,
     "sustainable": 1.3, "practices": 1.3, "environmental": 1.4, "aectm": 1.4, "aecm": 1.4,
     "contract": 1.8, "transaction": 1.8, "monitoring": 1.8, "perceived": 1.5, "relevance": 1.8,
+}
+
+TERM_SYNONYMS = {
+    "attitude": ["environmental concern", "moral concern", "dispositional", "environmental attitudes"],
+    "attitudes": ["environmental concern", "moral concern", "dispositional", "environmental attitudes"],
+    "awareness": ["environmental concern", "problem awareness", "knowledge"],
+    "relevance": ["relative advantage", "perceived benefits", "perceived relevance"],
+    "benefit": ["relative advantage", "perceived benefits"],
+    "benefits": ["relative advantage", "perceived benefits"],
+    "communication": ["interpersonal relationships", "social interaction", "advisors", "neighbours", "neighbors"],
+    "interpersonal": ["interpersonal relationships", "social interaction", "social norms"],
+    "norms": ["social norms", "injunctive norms", "descriptive norms"],
+    "norm": ["social norm", "injunctive norm", "descriptive norm"],
+    "control": ["perceived behavioural control", "perceived behavioral control", "ability", "capacity", "constraints"],
+    "monitoring": ["control", "administrative", "transaction costs"],
+    "costs": ["transaction costs", "administrative burden", "direct costs"],
+    "contract": ["scheme design", "contract design", "flexibility"],
+    "objectives": ["farming objectives", "economic objectives", "environmental objectives", "lifestyle objectives"],
+    "risk": ["risk tolerance", "perceived risks", "uncertainty"],
+    "risks": ["risk tolerance", "perceived risks", "uncertainty"],
 }
 
 BOILERPLATE_RE = re.compile(r"copyright|downloaded from|creative commons|guest on|doi:|journal:|author:|^---$|^tags:", re.I)
@@ -3007,8 +3030,14 @@ def weighted_term_coverage(query: str, candidate_text: str) -> tuple[float, list
     for t in qterms:
         weight=DOMAIN_IMPORTANCE.get(t, 1.0)
         total += weight
-        if re.search(rf"\b{re.escape(t)}\b", cn) or (len(t) >= 7 and t in cn):
-            got += weight; matched.append(t)
+        alternatives=[t] + TERM_SYNONYMS.get(t, [])
+        hit=""
+        for alt in alternatives:
+            alt_n=norm(alt)
+            if re.search(rf"\b{re.escape(alt_n)}\b", cn) or (len(alt_n) >= 7 and alt_n in cn):
+                hit=alt; break
+        if hit:
+            got += weight; matched.append(t if hit == t else f"{t}~{hit}")
         else:
             missing.append(t)
     return got / max(1.0, total), matched, missing
@@ -3029,6 +3058,16 @@ def source_intro_start(text: str) -> int:
     # Fallback: after YAML/front matter if present, otherwise zero.
     m=re.match(r"\A---\s*\n[\s\S]*?\n---\s*\n", text or "")
     return m.end() if m else 0
+
+
+def source_backmatter_start(text: str) -> int:
+    """Return offset where references/back matter begins, or len(text) if absent."""
+    patterns=[r"(?im)^#\s*References\b", r"(?im)^#\s*Bibliography\b", r"(?im)^References\s*$", r"(?im)^Bibliography\s*$"]
+    for pat in patterns:
+        m=re.search(pat, text or "")
+        if m:
+            return m.start()
+    return len(text or "")
 
 
 def span_quality_penalty(text: str, heading: str="", kind: str="") -> tuple[float, list[str]]:
@@ -3058,7 +3097,67 @@ def heading_term_bonus(query: str, heading: str) -> tuple[float, str]:
     cov, matched, _ = weighted_term_coverage(query, heading)
     if cov <= 0:
         return 0.0, ""
-    return min(0.14, cov * 0.18), "heading_terms:" + ",".join(matched[:4])
+    bonus=min(0.24, cov * 0.30)
+    q=norm(query); h=norm(heading)
+    for phrase in ["environmental concern", "moral concern", "farming objectives", "perceived behavioural control", "interpersonal relationships", "social norms", "perceived risks", "costs and benefits"]:
+        if phrase in q and phrase in h:
+            bonus += 0.12
+            matched.append(f"heading_exact:{phrase}")
+            break
+    return min(0.34, bonus), "heading_terms:" + ",".join(matched[:5])
+
+
+def repaired_citation_context(ctx: dict[str, Any]) -> str:
+    """Expand a citation context to a fuller sentence window when the citing source blob is available."""
+    fallback=ctx.get("context_text") or ctx.get("citation_text") or ""
+    try:
+        start=ctx.get("char_start"); end=ctx.get("char_end") or start
+        if start is None:
+            return fallback
+        repaired=sentence_aware_context(ctx.get("citing_source_id"), int(start), int(end), radius=1, outside_paragraph=True)
+        return repaired.get("context") or fallback
+    except BaseException:
+        return fallback
+
+
+def is_reference_or_backmatter(heading: str, text: str) -> bool:
+    h=norm(heading)
+    if re.match(r"^(references|bibliography|acknowledg|appendix|supplement)", h):
+        return True
+    sample=text[:1500]
+    if len(re.findall(r"https?://|\bdoi\b|\(\d{4}\)", sample, flags=re.I)) >= 5:
+        # Real prose can contain a few references; many DOI/URL/year patterns means bibliography/table.
+        return True
+    return False
+
+
+def sentence_window_candidates(source_id: str, span: dict[str, Any], source_text: str, query: str, locator: dict[str, Any], function: str) -> list[dict[str, Any]]:
+    start=span.get("char_start"); end=span.get("char_end")
+    if start is None or end is None:
+        return []
+    try:
+        start_i=int(start); end_i=int(end)
+    except Exception:
+        return []
+    local=source_text[start_i:end_i]
+    sents=sentence_spans(local, start_i)
+    if not sents:
+        return []
+    out=[]
+    for i,(_ss,_se,_sent) in enumerate(sents):
+        for radius in [0,1]:
+            lo=max(0,i-radius); hi=min(len(sents),i+radius+1)
+            wstart=sents[lo][0]; wend=sents[hi-1][1]
+            text=source_text[wstart:wend].strip()
+            if len(text) < 50:
+                continue
+            page=span.get("page_start") or candidate_page_for_span(source_id, wstart) or ""
+            score, why=citation_candidate_score(query, text, page=page, locator=locator, function=function, heading=span.get("heading") or "", kind="sentence_window")
+            if score > 0:
+                out.append({"target_type":"sentence_window", "target_id":f"SENTWIN-{source_id}-{wstart}-{wend}", "source_id":source_id, "char_start":wstart, "char_end":wend, "page_start":page, "page_end":page, "score":round(score + 0.04,4), "score_json":why, "matched_text":short(text, 900), "handle":source_range_handle(source_id,wstart,wend)})
+            if radius == 0:
+                break  # prefer exact sentence; radius=1 only evaluated by outer loop? disabled for now to avoid duplicates
+    return out
 
 
 def normalize_citation_query(ctx: dict[str, Any]) -> str:
@@ -3070,6 +3169,21 @@ def normalize_citation_query(ctx: dict[str, Any]) -> str:
     text=re.sub(r"\[[^\]]{0,80}\]\([^)]{0,120}\)", " ", text)
     text=re.sub(r"==", "", text)
     text=re.sub(r"\s+", " ", text).strip(" .;,")
+    # Domain expansion for frequent citing paraphrases. This is transparent and only affects retrieval.
+    low=norm(text)
+    expansions=[]
+    if "attitude" in low and "environment" in low:
+        expansions.append("environmental concern moral concern dispositional factors")
+    if "perceived relevance" in low or "relevance" in low:
+        expansions.append("relative advantage perceived benefits adoption")
+    if "interpersonal" in low or "communication" in low:
+        expansions.append("interpersonal relationships social norms neighbours advisors")
+    if "perceived behavioural control" in low or "behavioral control" in low:
+        expansions.append("perceived self-efficacy skills time control")
+    if "farming objectives" in low:
+        expansions.append("economic objectives environmental objectives lifestyle objectives")
+    if expansions:
+        text = (text + " " + " ".join(expansions)).strip()
     return text or (ctx.get("context_text") or ctx.get("citation_text") or "")
 
 
@@ -3163,27 +3277,34 @@ def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_cla
     target_source=c.get("matched_source_id")
     if not target_source:
         conn.close(); return {"context_id": context_id, "error": "citation context has no matched_source_id", "suggestions": []}
-    query=normalize_citation_query(c)
-    locator=parse_citation_locator(c.get("citation_text"), c.get("context_text"))
+    repaired_context=repaired_citation_context(c)
+    c_for_query={**c, "context_text": repaired_context}
+    query=normalize_citation_query(c_for_query)
+    locator=parse_citation_locator(c.get("citation_text"), repaired_context)
     suggestions=[]
     relation=infer_relation_from_citation_function(c.get("citation_function") or "")
     source_text=""
     intro_cutoff=0
+    backmatter_cutoff=10**18
     try:
         source_text=read_source_text(target_source)
         intro_cutoff=source_intro_start(source_text)
+        backmatter_cutoff=source_backmatter_start(source_text)
     except SystemExit:
         source_text=""
         intro_cutoff=0
+        backmatter_cutoff=10**18
 
     if include_claims:
         rows=conn.execute("SELECT * FROM source_cards WHERE source_id=? AND verification_status!='rejected'", (target_source,)).fetchall()
         for r in rows:
             d=dict(r); card=claim_card(d, "standard")
             # Ignore cards anchored before the introduction/front-matter boundary when offsets are available.
-            if source_text and d.get("char_start") is not None and int(d.get("char_start") or 0) < intro_cutoff:
+            if source_text and d.get("char_start") is not None and (int(d.get("char_start") or 0) < intro_cutoff or int(d.get("char_start") or 0) >= backmatter_cutoff):
                 continue
             text=" ".join([card.get("claim") or "", card.get("evidence") or "", card.get("scope_note") or ""])
+            if is_reference_or_backmatter("", text):
+                continue
             score, why=citation_candidate_score(query, text, page=card.get("page"), locator=locator, function=c.get("citation_function") or "", status=card.get("status") or "", grade=card.get("evidence_grade") or "", kind="claim")
             if score >= min_score:
                 suggestions.append({"target_type":"claim", "target_id":card["claim_id"], "source_id":target_source, "char_start":d.get("char_start"), "char_end":d.get("char_end"), "page_start":card.get("page") or "", "page_end":card.get("page") or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":claim_handle(card["claim_id"])})
@@ -3196,7 +3317,7 @@ def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_cla
                 d=dict(sp)
                 start=d.get("char_start"); end=d.get("char_end")
                 if start is None or end is None: continue
-                if int(start) < intro_cutoff:
+                if int(start) < intro_cutoff or int(start) >= backmatter_cutoff:
                     continue
                 try:
                     text=source_text[int(start):int(end)].strip()
@@ -3204,8 +3325,17 @@ def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_cla
                     continue
                 if not text or len(text) < 40: continue
                 kind=d.get("kind") or "span"
+                heading=d.get("heading") or ""
+                if is_reference_or_backmatter(heading, text):
+                    continue
+                # Add tight sentence-level windows first; paragraph/chunk remains fallback.
+                if kind == "paragraph":
+                    for sw in sentence_window_candidates(target_source, d, source_text, query, locator, c.get("citation_function") or ""):
+                        if sw["score"] >= min_score:
+                            sw.update({"suggested_relation": relation, "status": "candidate_location"})
+                            suggestions.append(sw)
                 page=d.get("page_start") or candidate_page_for_span(target_source, start) or ""
-                score, why=citation_candidate_score(query, text, page=page, locator=locator, function=c.get("citation_function") or "", heading=d.get("heading") or "", kind=kind)
+                score, why=citation_candidate_score(query, text, page=page, locator=locator, function=c.get("citation_function") or "", heading=heading, kind=kind)
                 if score >= min_score:
                     suggestions.append({"target_type":kind, "target_id":d.get("span_id"), "source_id":target_source, "char_start":start, "char_end":end, "page_start":page, "page_end":d.get("page_end") or page or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":source_range_handle(target_source, int(start), int(end))})
     conn.close()
@@ -3216,7 +3346,7 @@ def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_cla
         if key not in by_key or s["score"] > by_key[key]["score"]:
             by_key[key]=s
     ranked=sorted(by_key.values(), key=lambda x: x["score"], reverse=True)[:limit]
-    return {"context_id": context_id, "citing_source_id": c.get("citing_source_id"), "matched_source_id": target_source, "citation_function": c.get("citation_function"), "citation_text": c.get("citation_text"), "context_text": c.get("context_text"), "query_text": query, "intro_cutoff": intro_cutoff, "locator": locator, "suggestions": ranked}
+    return {"context_id": context_id, "citing_source_id": c.get("citing_source_id"), "matched_source_id": target_source, "citation_function": c.get("citation_function"), "citation_text": c.get("citation_text"), "context_text": c.get("context_text"), "repaired_context_text": repaired_context, "query_text": query, "intro_cutoff": intro_cutoff, "backmatter_cutoff": backmatter_cutoff, "locator": locator, "suggestions": ranked}
 
 
 def store_citation_location_suggestions(packet: dict[str, Any]) -> list[str]:
@@ -3248,7 +3378,7 @@ def cmd_suggest_cited_claim_location(args):
             sid=f" {s.get('suggestion_id')}" if s.get("suggestion_id") else ""
             print(f"- {sid} {s['target_type']} {s.get('target_id')} score:{s['score']} relation:{s.get('suggested_relation')} p.{s.get('page_start') or '?'} handle:{s.get('handle')}")
             why=s.get("score_json") or {}
-            print(f"  why: overlap={why.get('lexical_overlap')} page={why.get('page_score')} section={why.get('section_score')} {', '.join(why.get('why') or [])}")
+            print(f"  why: coverage={why.get('term_coverage')} raw={why.get('raw_overlap')} page={why.get('page_score')} section={why.get('section_score')} matched={','.join(why.get('matched_terms') or [])} {', '.join(why.get('why') or [])}")
             print(f"  text: {short(s.get('matched_text'), 260)}")
 
 
