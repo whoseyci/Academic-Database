@@ -52,6 +52,28 @@ Note: full source papers are intentionally ignored via `.gitignore` (`blobs/*.gz
 
 See [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md). Short version: agents should operate over claim IDs, evidence grades, review statuses and bounded source context — not vague model memory of the literature.
 
+## Integrated PDF → Markdown pipeline
+
+This repo now contains the local parser under `pdf_pipeline/` (merged from `PDF-to-MD`). The parser is optional and has separate dependencies; the core harness remains stdlib/SQLite-first.
+
+```bash
+# Convert PDF to paper.md + paper.parse.json
+python -m pdf_pipeline.convert path/to/paper.pdf --out data/converted
+
+# Ingest the converted output directory into the claim ledger
+python rh2.py ingest-converted data/converted/paper-slug --clean-markup
+```
+
+The parser emits `paper.parse.json`, a harness-compatible sidecar with page, section, paragraph, table, figure, reference and citation offsets over the final Markdown. This sidecar is what enables page-aware backtracking, source maps, source-card suggestions and claim-network construction.
+
+Parser dependencies are intentionally separate:
+
+```bash
+pip install -r requirements-parser.txt
+# optional figure/vision extras
+pip install -r requirements-vision.txt
+```
+
 ## Key commands
 
 Initialize:

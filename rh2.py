@@ -946,6 +946,67 @@ def cmd_ingest(args):
         print(f"Ingested {sid}")
 
 
+def metadata_from_converted_dir(converted_dir: Path) -> tuple[Path, Path|None, dict[str, Any]]:
+    """Read paper.md + optional paper.parse.json/paper.json from a parser output directory."""
+    md_path=converted_dir / "paper.md"
+    if not md_path.exists():
+        raise SystemExit(f"Converted directory must contain paper.md: {converted_dir}")
+    parse_path=converted_dir / "paper.parse.json"
+    paper_json=converted_dir / "paper.json"
+    stats_json=converted_dir / "stats.json"
+    meta={"title":"", "authors":"", "year":"", "doi":"", "source_type":"peer-reviewed article", "disciplines":"", "geography":"", "methodology":"", "theory":"", "quality":"unrated", "notes":""}
+    if paper_json.exists():
+        try:
+            pj=json.loads(paper_json.read_text(encoding="utf-8"))
+            m=pj.get("metadata") or {}
+            meta.update({
+                "title": m.get("title") or meta["title"],
+                "authors": "; ".join(m.get("authors") or []) if isinstance(m.get("authors"), list) else (m.get("authors") or meta["authors"]),
+                "year": str(m.get("year") or meta["year"]),
+                "doi": m.get("doi") or meta["doi"],
+                "notes": f"Converted from {pj.get('source_pdf','')} via pdf_pipeline.".strip(),
+            })
+            if m.get("journal"):
+                meta["notes"] = (meta.get("notes","") + f" Journal: {m.get('journal')}.").strip()
+        except Exception as e:
+            meta["notes"] = f"paper.json present but could not be parsed: {e}"
+    if stats_json.exists():
+        try:
+            st=json.loads(stats_json.read_text(encoding="utf-8"))
+            conf=st.get("confidence")
+            if conf and meta["quality"] == "unrated":
+                meta["quality"] = str(conf)
+            meta["notes"] = (meta.get("notes","") + f" Parser stats: pages={st.get('n_pages')}, refs={st.get('n_references')}, linked_cites={st.get('n_citations_linked')}, coverage={st.get('coverage_ratio')}, confidence={st.get('confidence')}.").strip()
+        except Exception:
+            pass
+    return md_path, (parse_path if parse_path.exists() else None), meta
+
+
+def cmd_ingest_converted(args):
+    converted_dir=Path(args.converted_dir)
+    md_path, parse_path, meta=metadata_from_converted_dir(converted_dir)
+    # CLI overrides parser metadata.
+    for k in ["title","authors","year","doi","source_type","disciplines","geography","methodology","theory","quality","notes"]:
+        v=getattr(args,k,None)
+        if v:
+            meta[k]=v
+    sid=args.source_id or (canonical_source_id_from_doi(meta.get("doi")) if meta.get("doi") else slug(meta.get("title") or converted_dir.name))
+    if args.clean_markup:
+        cleaned=clean_paper_markup(md_path.read_text(encoding="utf-8", errors="ignore"))
+        tmp=ROOT / "_tmp_clean_ingest.md"
+        tmp.write_text(cleaned, encoding="utf-8")
+        try:
+            ingest_source(tmp, sid, meta, parse_path)
+        finally:
+            try: tmp.unlink()
+            except Exception: pass
+    else:
+        ingest_source(md_path, sid, meta, parse_path)
+    payload={"source_id": sid, "paper_md": str(md_path), "parse_map": str(parse_path) if parse_path else "", "metadata": meta}
+    if args.json: print_json(payload)
+    else: print(f"Ingested converted paper {sid} from {converted_dir}" + (" with parse map" if parse_path else ""))
+
+
 def cmd_mark_claim(args):
     quote=args.quote or args.text or ""
     if not quote and not sys.stdin.isatty(): quote=sys.stdin.read()
@@ -3803,6 +3864,10 @@ def main():
     sub=p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init").set_defaults(func=cmd_init)
     ing=sub.add_parser("ingest"); ing.add_argument("path"); ing.add_argument("--source-id"); ing.add_argument("--title"); ing.add_argument("--authors",default=""); ing.add_argument("--year",default=""); ing.add_argument("--doi",default=""); ing.add_argument("--source-type",default="peer-reviewed article"); ing.add_argument("--disciplines",default=""); ing.add_argument("--geography",default=""); ing.add_argument("--methodology",default=""); ing.add_argument("--theory",default=""); ing.add_argument("--quality",default="unrated"); ing.add_argument("--notes",default=""); ing.add_argument("--clean-markup", action="store_true", help="Remove harness/Obsidian annotation noise such as ==highlight==, [PAGE UNVERIFIED], and #MA tags before canonical ingest"); ing.add_argument("--parse-map", help="Optional parser sidecar JSON with pages/sections/tables/figures char offsets for MD ingest"); ing.set_defaults(func=cmd_ingest)
+    iconv=sub.add_parser("ingest-converted", help="Ingest a pdf_pipeline output directory containing paper.md + optional paper.parse.json/paper.json")
+    iconv.add_argument("converted_dir"); iconv.add_argument("--source-id"); iconv.add_argument("--title"); iconv.add_argument("--authors"); iconv.add_argument("--year"); iconv.add_argument("--doi"); iconv.add_argument("--source-type"); iconv.add_argument("--disciplines"); iconv.add_argument("--geography"); iconv.add_argument("--methodology"); iconv.add_argument("--theory"); iconv.add_argument("--quality"); iconv.add_argument("--notes"); iconv.add_argument("--clean-markup", action="store_true"); iconv.add_argument("--json", action="store_true"); iconv.set_defaults(func=cmd_ingest_converted)
+    imd=sub.add_parser("ingest-md", help="Alias for ingest with --parse-map support")
+    imd.add_argument("path"); imd.add_argument("--source-id"); imd.add_argument("--title"); imd.add_argument("--authors",default=""); imd.add_argument("--year",default=""); imd.add_argument("--doi",default=""); imd.add_argument("--source-type",default="peer-reviewed article"); imd.add_argument("--disciplines",default=""); imd.add_argument("--geography",default=""); imd.add_argument("--methodology",default=""); imd.add_argument("--theory",default=""); imd.add_argument("--quality",default="unrated"); imd.add_argument("--notes",default=""); imd.add_argument("--clean-markup", action="store_true"); imd.add_argument("--parse-map"); imd.set_defaults(func=cmd_ingest)
     imp=sub.add_parser("import-v1"); imp.add_argument("v1_path"); imp.set_defaults(func=cmd_import_v1)
     mark=sub.add_parser("mark-claim"); mark.add_argument("quote", nargs="?"); mark.add_argument("--text"); mark.add_argument("--source-id"); mark.add_argument("--claim-id"); mark.add_argument("--claim"); mark.add_argument("--claim-representation", choices=["source_quote","lightly_normalized_source","paraphrase","source_range"]); mark.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); mark.add_argument("--constructs"); mark.add_argument("--rq-tags"); mark.add_argument("--discipline"); mark.add_argument("--geography"); mark.add_argument("--methodology"); mark.add_argument("--scope-note"); mark.add_argument("--confidence", choices=["low","medium","high"], default="high"); mark.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); mark.add_argument("--allow-duplicate", action="store_true"); mark.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); mark.add_argument("--json", action="store_true"); mark.set_defaults(func=cmd_mark_claim)
     ret=sub.add_parser("retrieve"); ret.add_argument("query"); ret.add_argument("--limit", type=int, default=8); ret.add_argument("--source-id"); ret.add_argument("--verified-only", action="store_true"); ret.add_argument("--status"); ret.add_argument("--claim-type"); ret.add_argument("--card-role", help="Filter by card role, e.g. result_claim, method_card, background_card"); ret.add_argument("--fields", choices=["minimal","standard","full"], default="minimal"); ret.add_argument("--json", action="store_true"); ret.set_defaults(func=cmd_retrieve)

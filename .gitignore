@@ -21,3 +21,15 @@ blobs/*.gz
 # Secrets
 .env
 *.token
+
+# Parser/runtime artifacts (keep code, not converted corpora)
+data/pdfs/
+data/converted/
+data/markdown/
+data/parse_maps/
+parser_output/
+output_v2/
+*.pdf
+*.gguf
+*.tmp.md
+_tmp_clean_ingest.md

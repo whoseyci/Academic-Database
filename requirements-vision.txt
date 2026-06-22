@@ -1,0 +1,6 @@
+# Optional dependencies/tools for figure/chart/diagram processing.
+# Gemma/llama.cpp model binaries are configured outside pip via env vars.
+Pillow
+opencv-python
+pytesseract
+numpy

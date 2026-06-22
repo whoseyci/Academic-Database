@@ -1,0 +1,7 @@
+# Optional dependencies for the local PDF -> Markdown parser pipeline.
+# The core research harness (rh2.py) intentionally remains stdlib-only.
+pymupdf
+pymupdf4llm
+Pillow
+opencv-python
+pytesseract
