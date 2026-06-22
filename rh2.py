@@ -348,6 +348,27 @@ def read_source_text(source_id: str) -> str:
         return f.read()
 
 
+def clean_paper_markup(text: str) -> str:
+    """Remove harness/Obsidian annotation noise from markdown before canonical ingest.
+
+    This is intentionally conservative: it removes highlight markers and known MA/page
+    notes while preserving actual paper prose and citation text.
+    """
+    t=str(text or "")
+    # Drop YAML frontmatter from annotated Obsidian notes; source metadata is stored separately.
+    t=re.sub(r"\A---\s*\n[\s\S]*?\n---\s*\n", "", t, count=1)
+    # Keep highlighted text but remove markers.
+    t=t.replace("==", "")
+    # Remove known page/verifier annotations and MA tags inserted during thesis work.
+    t=re.sub(r"\[PAGE UNVERIFIED\]", " ", t, flags=re.I)
+    t=re.sub(r"\[(?:Abstract-level benchmarks|Explicit TPB definition|Environmental attitudes|Farmer typology|Core quantitative finding|Past participation|Consistent positive|Contract design|Mixed evidence|[^\]]{0,40}RQ[123][^\]]{0,180})\]", " ", t)
+    t=re.sub(r"#[A-Za-z0-9_./§-]+", " ", t)
+    # Remove leftover repeated blank spacing without destroying paragraph boundaries.
+    t=re.sub(r"[ \t]+", " ", t)
+    t=re.sub(r"\n{4,}", "\n\n\n", t)
+    return t.strip() + "\n"
+
+
 def write_blob(source_id: str, text: str) -> tuple[str, str]:
     source_hash=sha256_text(text)
     path=BLOBS / f"{source_id}_{source_hash[:12]}.md.gz"
@@ -835,8 +856,20 @@ def cmd_init(args):
 def cmd_ingest(args):
     meta={k:getattr(args,k) for k in ["title","authors","year","doi","source_type","disciplines","geography","methodology","theory","quality","notes"]}
     sid = args.source_id or (canonical_source_id_from_doi(args.doi) if args.doi else slug(args.title or Path(args.path).stem))
-    ingest_source(Path(args.path), sid, meta)
-    print(f"Ingested {sid}")
+    if getattr(args, "clean_markup", False):
+        src=Path(args.path)
+        cleaned=clean_paper_markup(src.read_text(encoding="utf-8", errors="ignore"))
+        tmp=ROOT / "_tmp_clean_ingest.md"
+        tmp.write_text(cleaned, encoding="utf-8")
+        try:
+            ingest_source(tmp, sid, meta)
+        finally:
+            try: tmp.unlink()
+            except Exception: pass
+        print(f"Ingested {sid} (cleaned markup)")
+    else:
+        ingest_source(Path(args.path), sid, meta)
+        print(f"Ingested {sid}")
 
 
 def cmd_mark_claim(args):
@@ -1339,6 +1372,13 @@ def candidate_sentence_spans(text: str) -> list[tuple[int,int,str,str]]:
                 clean=sent.strip()
                 if len(clean) < 70 or len(clean) > 850:
                     continue
+                # Avoid page-break fragments / table remnants rather than complete sentences.
+                if not re.search(r'[.!?][)\'"”\]]?$', clean):
+                    continue
+                if re.match(r"^\d+[.;:]\s", clean):
+                    continue
+                if re.match(r"^(and|or|but|while|whereas|although)\b", clean, flags=re.I):
+                    continue
                 if clean.startswith("![") or LOW_VALUE_RE.match(clean):
                     continue
                 if re.search(r"(?i)^[-*]?\s*(select all|deselect all|filter)$", clean):
@@ -1373,6 +1413,7 @@ def infer_constructs_from_text(text: str, heading: str = "") -> list[str]:
 
 def score_candidate_sentence(sent: str, heading: str) -> tuple[float, str]:
     l=norm(sent)
+    h=norm(heading)
     score=0.0
     # High-value argumentative/result/policy cues.
     cues=[
@@ -1387,7 +1428,6 @@ def score_candidate_sentence(sent: str, heading: str) -> tuple[float, str]:
     # Paper-specific relevance for thesis/harness policy use.
     for c in ["cap", "green deal", "egd", "biodiversity", "climate", "pesticide", "organic", "ecoscheme", "aecm"]:
         if c in l: score += 0.55
-    h=norm(heading)
     if any(x in h for x in ["protection of biodiversity", "climate", "sustainable management", "opportunities", "environmental commitments"]):
         score += 0.6
     if "abstract" in h:
@@ -1398,9 +1438,11 @@ def score_candidate_sentence(sent: str, heading: str) -> tuple[float, str]:
     if l.startswith(("in 2019", "established in", "within the egd")):
         score -= 0.3
     claim_type=infer_claim_type(sent)
-    if any(k in l for k in ["should", "recommend", "target", "monitoring", "intervention", "strategic plan"]):
+    if any(x in h for x in ["method", "study areas", "landscape scenarios", "modelling approach", "data analysis", "material and methods", "literature search", "data collection"]):
+        claim_type="methodological claim"
+    if claim_type != "methodological claim" and any(k in l for k in ["should", "recommend", "target", "monitoring", "intervention", "strategic plan"]):
         claim_type="policy implication"
-    if any(k in l for k in ["lack", "missing", "unclear", "not addressed", "doubts", "concerns", "hinder", "risk"]):
+    if claim_type != "methodological claim" and any(k in l for k in ["lack", "missing", "unclear", "not addressed", "doubts", "concerns", "hinder", "risk"]):
         if claim_type == "background": claim_type="limitation"
     return score, claim_type
 
@@ -3173,7 +3215,7 @@ def main():
     p=argparse.ArgumentParser(description="Research Harness V2")
     sub=p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init").set_defaults(func=cmd_init)
-    ing=sub.add_parser("ingest"); ing.add_argument("path"); ing.add_argument("--source-id"); ing.add_argument("--title"); ing.add_argument("--authors",default=""); ing.add_argument("--year",default=""); ing.add_argument("--doi",default=""); ing.add_argument("--source-type",default="peer-reviewed article"); ing.add_argument("--disciplines",default=""); ing.add_argument("--geography",default=""); ing.add_argument("--methodology",default=""); ing.add_argument("--theory",default=""); ing.add_argument("--quality",default="unrated"); ing.add_argument("--notes",default=""); ing.set_defaults(func=cmd_ingest)
+    ing=sub.add_parser("ingest"); ing.add_argument("path"); ing.add_argument("--source-id"); ing.add_argument("--title"); ing.add_argument("--authors",default=""); ing.add_argument("--year",default=""); ing.add_argument("--doi",default=""); ing.add_argument("--source-type",default="peer-reviewed article"); ing.add_argument("--disciplines",default=""); ing.add_argument("--geography",default=""); ing.add_argument("--methodology",default=""); ing.add_argument("--theory",default=""); ing.add_argument("--quality",default="unrated"); ing.add_argument("--notes",default=""); ing.add_argument("--clean-markup", action="store_true", help="Remove harness/Obsidian annotation noise such as ==highlight==, [PAGE UNVERIFIED], and #MA tags before canonical ingest"); ing.set_defaults(func=cmd_ingest)
     imp=sub.add_parser("import-v1"); imp.add_argument("v1_path"); imp.set_defaults(func=cmd_import_v1)
     mark=sub.add_parser("mark-claim"); mark.add_argument("quote", nargs="?"); mark.add_argument("--text"); mark.add_argument("--source-id"); mark.add_argument("--claim-id"); mark.add_argument("--claim"); mark.add_argument("--claim-representation", choices=["source_quote","lightly_normalized_source","paraphrase","source_range"]); mark.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); mark.add_argument("--constructs"); mark.add_argument("--rq-tags"); mark.add_argument("--discipline"); mark.add_argument("--geography"); mark.add_argument("--methodology"); mark.add_argument("--scope-note"); mark.add_argument("--confidence", choices=["low","medium","high"], default="high"); mark.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); mark.add_argument("--allow-duplicate", action="store_true"); mark.add_argument("--fields", choices=["minimal","standard","full"], default="standard"); mark.add_argument("--json", action="store_true"); mark.set_defaults(func=cmd_mark_claim)
     ret=sub.add_parser("retrieve"); ret.add_argument("query"); ret.add_argument("--limit", type=int, default=8); ret.add_argument("--source-id"); ret.add_argument("--verified-only", action="store_true"); ret.add_argument("--status"); ret.add_argument("--claim-type"); ret.add_argument("--card-role", help="Filter by card role, e.g. result_claim, method_card, background_card"); ret.add_argument("--fields", choices=["minimal","standard","full"], default="minimal"); ret.add_argument("--json", action="store_true"); ret.set_defaults(func=cmd_retrieve)

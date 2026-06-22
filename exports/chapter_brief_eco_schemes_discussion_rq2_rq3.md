@@ -13,13 +13,14 @@ Purpose: Provide an LLM or human writer with source-backed claims for discussing
 
 ## Coverage
 
-- Claims: 22
-- Sources: {'Canessa_2024': 22}
-- Statuses: {'needs_page_check': 22}
+- Claims: 15
+- Sources: {'Canessa_2024': 15}
+- Statuses: {'candidate_needs_review': 15}
 
 ## Warnings
 
 - No verified claims in this chapter brief; use candidate claims for drafting only after review.
+- Required topics not represented in retrieved claims: ['additionality', 'administrative burden', 'contract design', 'institutional trust']
 
 ## Behavioural and institutional drivers of participation
 
@@ -27,45 +28,45 @@ Writing goal: Explain why participation is not only financial: attitudes, trust,
 
 Query: `trust policy stability social norms previous participation information pro-environmental attitudes adoption AECM farmers`
 
-- **CLM-Canessa_2024-0005** [0.5385] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: The theory of planned behaviour is explicitly relevant to AECM adoption because it links intentions and behaviour to attitudes, subjective norms, and perceived behavioural control.
-  - Evidence: the theory of planned behaviour considers how individual intentions and behaviours are being influenced by personal attitudes, perceived social pressure (i.e., subjective norms), and perceived behavioural control
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0005 --window 500`
-
-- **CLM-Canessa_2024-0021** [0.5385] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Previous participation in AECM is a strong predictor of later participation, suggesting that experience can reduce information asymmetry and improve policy trust.
-  - Evidence: Participation in previous AECM or other types of subsidised programs was also found to increase the likelihood of participation in most of the observed models (68% out of 28 models), illustrating the importance of experience in reducing information asymmetry and improving trust in public policies
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0021 --window 500`
-
-- **CLM-Canessa_2024-0022** [0.5385] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Neighbouring farmers’ opinions or participation, when significant, consistently showed a positive effect on AECM adoption.
-  - Evidence: For variables capturing the role of neighbouring or other farmers’ opinions on AECM, whenever we found a significant adoption effect, it was positive
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0022 --window 500`
-
-- **CLM-Canessa_2024-0020** [0.4615] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Trust and perceived policy stability were positively associated with AECM uptake in most significant cases, though they were rarely studied.
-  - Evidence: most of the significant results (57%) suggest that the perceived stability of policy instruments and favourable attitudes towards institutions are positively correlated with AECM uptake
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0020 --window 500`
-
-- **CLM-Canessa_2024-0001** [0.3846] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: Because AECM are voluntary, farmer participation is the first indicator of programme success and eventual environmental effectiveness.
-  - Evidence: Due to the voluntary nature of agri-environmental-climate measures (AECM), adequate and effective participation of farmers in these initiatives is the first key indicator of their success and, eventually, their effectiveness.
+- **CLM-Canessa_2024-0001** [0.3077] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Effectively increasing adoption of agri-environmental-climate measures (AECM) requires a deeper understanding of farmers’ motives.
+  - Evidence: Effectively increasing adoption of agri-environmental-climate measures (AECM) requires a deeper understanding of farmers’ motives.
   - Deep dive: `python rh2.py context CLM-Canessa_2024-0001 --window 500`
 
-- **CLM-Canessa_2024-0003** [0.3846] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Action-based AECM are predominant partly because they are easier to implement, monitor, and accept, but they still show mixed participation and environmental-effectiveness records.
-  - Evidence: WTO alignment, along with the ease of implementation, monitoring, and general acceptability by farmers, collectively favour a predominant farmer preference of action-over result-based AECM
+- **CLM-Canessa_2024-0003** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Conversely, variables capturing the relevance of AECM to farmers and the opportunity of participation are frequently included, but often ineffective in explaining uptake.
+  - Evidence: Conversely, variables capturing the relevance of AECM to farmers and the opportunity of participation are frequently included, but often ineffective in explaining uptake.
   - Deep dive: `python rh2.py context CLM-Canessa_2024-0003 --window 500`
 
-- **CLM-Canessa_2024-0004** [0.3846] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: AECM can fail either because payments are too low to induce adoption or because they attract baseline-complying farmers with low or zero additionality.
-  - Evidence: Payments offered may be too small to compensate the cost incurred by the farmer
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0004 --window 500`
+- **CLM-Canessa_2024-0006** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: However, despite their long-lasting existence and benefits, even action-based AECM have a mixed record of participation, as well as sparse and inconsistent evidence regarding their overall environmental effectiveness (Batary et al., 2015; Pe’er et al., 2019; EC, 2021; Ait Sidhoum et al.
+  - Evidence: However, despite their long-lasting existence and benefits, even action-based AECM have a mixed record of participation, as well as sparse and inconsistent evidence regarding their overall environmental effectiveness (Batary et al., 2015; Pe’er et al., 2019; EC, 2021; Ait Sidhoum et al.
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0006 --window 500`
 
-- **CLM-Canessa_2024-0008** [0.3846] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: Environmental attitudes influence whether farmers perceive an AECM as relevant and acceptable.
-  - Evidence: Attitude variables, describing the importance that farmers place on the environment, also play an important role in affecting the perceived relevance of the measure
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0008 --window 500`
+- **CLM-Canessa_2024-0029** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: This is because ex-post studies either rely on databases that lack information about the scheme’s characteristics or they focus on the adoption of a single AECM, with no statistically significant variation.
+  - Evidence: This is because ex-post studies either rely on databases that lack information about the scheme’s characteristics or they focus on the adoption of a single AECM, with no statistically significant variation.
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0029 --window 500`
+
+- **CLM-Canessa_2024-0021** [0.1538] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Indeed, despite widespread insignificance (38%), the observed models confirm a significant relationship between higher age and lower AECM participation (53%) (Damianos and Giannakopoulos, 2002; Hounsome et al., 2006; Mante and Gerowitt, 2007; Borsotto et al., 2008; Polman and Slangen, 2008; Hynes and Garvey, 2009; Capitanio et al., 2011; Giovanopoulou et al., 2011; Mettepenningen et al., 2013; Pascucci et al., 2013; Murphy et al., 2014; Bartolini and Vergamini, 2019; Cullen et al., 2021).
+  - Evidence: Indeed, despite widespread insignificance (38%), the observed models confirm a significant relationship between higher age and lower AECM participation (53%) (Damianos and Giannakopoulos, 2002; Hounsome et al., 2006; Mante and Gerowitt, 2007; Borsotto et al., 2008; Polman and Slangen, 2008; [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0021 --window 500`
+
+- **CLM-Canessa_2024-0024** [0.1538] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Lower productivity often coincides with lower income and reduced opportunity costs, thus with the need for complementary farm-income support (Lastra-Bravo et al., 2015). [LFA location as structural predictor of participation; Andalusian olive areas frequently overlap with less-favoured/marginal zones — useful structural context for §5 and §6] The same effect is, however, not captured by the seven studies measuring the relationship between land productivity (e.g., gross output per hectare) and AECM participation.
+  - Evidence: Lower productivity often coincides with lower income and reduced opportunity costs, thus with the need for complementary farm-income support (Lastra-Bravo et al., 2015). [LFA location as structural predictor of participation; Andalusian olive areas frequently overlap with less- [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0024 --window 500`
+
+- **CLM-Canessa_2024-0026** [0.1538] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: However, in the case of dairy farming, the majority of significant results revealed a negative correlation with participation (31%) (Polman and Slangen, 2008; Murphy et al., 2014; Zimmermann and Britz, 2016), while in the case of cattle farming, most significant results found a positive effect on participation (33%) (Dupraz et al., 2002; Borsotto et al., 2008; Capitanio et al., 2011; Unay Gailhard and Bojnec, 2015; Cullen et al., 2020, 2021).
+  - Evidence: However, in the case of dairy farming, the majority of significant results revealed a negative correlation with participation (31%) (Polman and Slangen, 2008; Murphy et al., 2014; Zimmermann and Britz, 2016), while in the case of cattle farming, most significant results found a positive effect [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0026 --window 500`
+
+- **CLM-Canessa_2024-0025** [0.0769] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: significant cases (50%) (Pascucci et al., 2013; Zimmermann and Britz, 2016), while specialisation in permanent crops was insignificant in 92% of the twelve models (Capitanio et al., 2011; Pascucci et al., 2013; Unay Gailhard and Bojnec, 2015; Cullen et al., 2020, 2021; Wąs et al., 2021). [Permanent crop specialisation (olive farming is permanent crop) does not consistently predict AECM uptake in quantitative literature — underlines the need for attitudinal/behavioral data for the Andalusian olive context; relevant to RQ1 typology and §6] For dairy production and cattle production, specialisation effects were inconsistent across studies.
+  - Evidence: significant cases (50%) (Pascucci et al., 2013; Zimmermann and Britz, 2016), while specialisation in permanent crops was insignificant in 92% of the twelve models (Capitanio et al., 2011; Pascucci et al., 2013; Unay Gailhard and Bojnec, 2015; Cullen et al., 2020, 2021; Wąs et al., 2021). [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0025 --window 500`
 
 
 ## Contract design, flexibility and transaction costs
@@ -74,45 +75,45 @@ Writing goal: Discuss how payment design, bureaucratic simplification, implement
 
 Query: `contract design flexibility bureaucratic simplification transaction costs payment compensation opportunity costs participation`
 
-- **CLM-Canessa_2024-0025** [0.5455] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Bureaucratic simplification, fairness/flexibility, and higher compensation levels were positively linked to AECM uptake in the limited ex-post studies that measured contract features.
-  - Evidence: some studies reported a positive impact on uptake from greater ease of implementation/ bureaucratic simplification, increased fairness and flexibility, and higher compensation levels
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0025 --window 500`
-
-- **CLM-Canessa_2024-0013** [0.4545] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · policy implication · `paraphrase`
-  - Claim: Farmers generally prefer AECM contracts that are simple, understandable and flexible, while flat payments can deter farmers with high compliance costs.
-  - Evidence: farmers receive a flat payment that is not customized to the heterogeneity of compliance costs. This can deter those with high compliance costs from participating.
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0013 --window 500`
-
-- **CLM-Canessa_2024-0032** [0.4545] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · policy implication · `paraphrase`
-  - Claim: For farmers with higher opportunity costs, policy can either increase incentives through differentiated mechanisms or invest in nudging and signalling strategies.
-  - Evidence: To encourage the participation of farmers with higher opportunity costs, AECM implementers can either increase incentives through tailored methods like auctions or differentiated payments ... or invest in nudging and signalling strategies
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0032 --window 500`
-
-- **CLM-Canessa_2024-0011** [0.3636] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: AECM participation costs include equipment, knowledge, working time, productivity losses, and reduced management flexibility.
-  - Evidence: These include, for instance, the necessity of acquiring new inputs or specific equipment
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0011 --window 500`
-
-- **CLM-Canessa_2024-0031** [0.3636] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Social factors, cognitive factors and contract design deserve more attention because variables in these domains often show positive significant adoption effects when measured.
-  - Evidence: variables explaining the role of lower transaction costs, social contexts, and satisfactory contract design frequently appear to be significant
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0031 --window 500`
-
-- **CLM-Canessa_2024-0003** [0.2727] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Action-based AECM are predominant partly because they are easier to implement, monitor, and accept, but they still show mixed participation and environmental-effectiveness records.
-  - Evidence: WTO alignment, along with the ease of implementation, monitoring, and general acceptability by farmers, collectively favour a predominant farmer preference of action-over result-based AECM
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0003 --window 500`
-
-- **CLM-Canessa_2024-0017** [0.2727] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Lower household/farm income can make AECM participation more attractive because payments provide complementary income where opportunity costs are lower.
-  - Evidence: 58% a significantly negative correlation. The latter argue that lower household and farm-related income can make participation in AECM more attractive to farmers, as income support enabled by lower opportunity costs
+- **CLM-Canessa_2024-0017** [0.4545] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: Overall design of the measure: While certain contract attributes, such as increased payment, positively affect the probability of participation, other elements related to flexibility (e.g., plot or practice selection, withdrawal from the contract), bureaucracy, or monitoring can also influence farmers’ decisions to participate in AECM (Raina et al., 2021).
+  - Evidence: Overall design of the measure: While certain contract attributes, such as increased payment, positively affect the probability of participation, other elements related to flexibility (e.g., plot or practice selection, withdrawal from the contract), bureaucracy, or monitoring can also influence [...]
   - Deep dive: `python rh2.py context CLM-Canessa_2024-0017 --window 500`
 
-- **CLM-Canessa_2024-0018** [0.2727] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Location in less-favoured areas is frequently associated with higher AECM participation, likely because lower productivity and income reduce opportunity costs and increase the value of complementary income support.
-  - Evidence: Lower productivity often coincides with lower income and reduced opportunity costs, thus with the need for complementary farm-income support
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0018 --window 500`
+- **CLM-Canessa_2024-0014** [0.2727] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: If the AECM payment offsets output losses and other costs of provision, the cost of participation for farmers should theoretically be zero (OECD, 2012).
+  - Evidence: If the AECM payment offsets output losses and other costs of provision, the cost of participation for farmers should theoretically be zero (OECD, 2012).
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0014 --window 500`
+
+- **CLM-Canessa_2024-0024** [0.2727] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Lower productivity often coincides with lower income and reduced opportunity costs, thus with the need for complementary farm-income support (Lastra-Bravo et al., 2015). [LFA location as structural predictor of participation; Andalusian olive areas frequently overlap with less-favoured/marginal zones — useful structural context for §5 and §6] The same effect is, however, not captured by the seven studies measuring the relationship between land productivity (e.g., gross output per hectare) and AECM participation.
+  - Evidence: Lower productivity often coincides with lower income and reduced opportunity costs, thus with the need for complementary farm-income support (Lastra-Bravo et al., 2015). [LFA location as structural predictor of participation; Andalusian olive areas frequently overlap with less- [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0024 --window 500`
+
+- **CLM-Canessa_2024-0036** [0.2727] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: This suggests that, independently from alignment and perceived opportunity, AECM implementers should pay adequate attention to engagement requirements and elements of contract design. [Conclusion-level synthesis: engagement and contract design as highest-yield intervention points; directly supports §6 policy recommendations for RQ3 and frames informational PBC] Co-design, experimental and semi-qualitative approaches offer promising tools for guiding the institutional design of the schemes.
+  - Evidence: This suggests that, independently from alignment and perceived opportunity, AECM implementers should pay adequate attention to engagement requirements and elements of contract design. [Conclusion-level synthesis: engagement and contract design as highest-yield intervention points; directly [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0036 --window 500`
+
+- **CLM-Canessa_2024-0003** [0.1818] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Conversely, variables capturing the relevance of AECM to farmers and the opportunity of participation are frequently included, but often ineffective in explaining uptake.
+  - Evidence: Conversely, variables capturing the relevance of AECM to farmers and the opportunity of participation are frequently included, but often ineffective in explaining uptake.
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0003 --window 500`
+
+- **CLM-Canessa_2024-0008** [0.1818] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: They highlighted the need for an integrated understanding of how economic, behavioural and contractual factors act as both barriers and opportunities for participation in AECM, calling for a more comprehensive approach to account for the complexity of farmers’ decision-making during the design of AECM (Tyllianakis and Martin-Ortega, 2021).
+  - Evidence: They highlighted the need for an integrated understanding of how economic, behavioural and contractual factors act as both barriers and opportunities for participation in AECM, calling for a more comprehensive approach to account for the complexity of farmers’ decision-making during the design [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0008 --window 500`
+
+- **CLM-Canessa_2024-0002** [0.0909] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: Earlier literature reviews provide certain insights, but have not yet clarified how the evidence on adoption can be optimally applied to AECM design.
+  - Evidence: Earlier literature reviews provide certain insights, but have not yet clarified how the evidence on adoption can be optimally applied to AECM design.
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0002 --window 500`
+
+- **CLM-Canessa_2024-0006** [0.0909] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: However, despite their long-lasting existence and benefits, even action-based AECM have a mixed record of participation, as well as sparse and inconsistent evidence regarding their overall environmental effectiveness (Batary et al., 2015; Pe’er et al., 2019; EC, 2021; Ait Sidhoum et al.
+  - Evidence: However, despite their long-lasting existence and benefits, even action-based AECM have a mixed record of participation, as well as sparse and inconsistent evidence regarding their overall environmental effectiveness (Batary et al., 2015; Pe’er et al., 2019; EC, 2021; Ait Sidhoum et al.
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0006 --window 500`
 
 
 ## Participation versus additionality trade-offs
@@ -121,35 +122,35 @@ Writing goal: Show why high participation alone is insufficient if schemes mostl
 
 Query: `additionality self-selection baseline complying farmers alignment participation effectiveness action based AECM`
 
-- **CLM-Canessa_2024-0003** [0.5833] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · empirical finding · `paraphrase`
-  - Claim: Action-based AECM are predominant partly because they are easier to implement, monitor, and accept, but they still show mixed participation and environmental-effectiveness records.
-  - Evidence: WTO alignment, along with the ease of implementation, monitoring, and general acceptability by farmers, collectively favour a predominant farmer preference of action-over result-based AECM
+- **CLM-Canessa_2024-0005** [0.4167] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: WTO alignment, along with the ease of implementation, monitoring, and general acceptability by farmers, collectively favour a predominant farmer preference of action-over result-based AECM (Burton and Schwarz, 2013).
+  - Evidence: WTO alignment, along with the ease of implementation, monitoring, and general acceptability by farmers, collectively favour a predominant farmer preference of action-over result-based AECM (Burton and Schwarz, 2013).
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0005 --window 500`
+
+- **CLM-Canessa_2024-0006** [0.4167] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: However, despite their long-lasting existence and benefits, even action-based AECM have a mixed record of participation, as well as sparse and inconsistent evidence regarding their overall environmental effectiveness (Batary et al., 2015; Pe’er et al., 2019; EC, 2021; Ait Sidhoum et al.
+  - Evidence: However, despite their long-lasting existence and benefits, even action-based AECM have a mixed record of participation, as well as sparse and inconsistent evidence regarding their overall environmental effectiveness (Batary et al., 2015; Pe’er et al., 2019; EC, 2021; Ait Sidhoum et al.
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0006 --window 500`
+
+- **CLM-Canessa_2024-0017** [0.3333] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: Overall design of the measure: While certain contract attributes, such as increased payment, positively affect the probability of participation, other elements related to flexibility (e.g., plot or practice selection, withdrawal from the contract), bureaucracy, or monitoring can also influence farmers’ decisions to participate in AECM (Raina et al., 2021).
+  - Evidence: Overall design of the measure: While certain contract attributes, such as increased payment, positively affect the probability of participation, other elements related to flexibility (e.g., plot or practice selection, withdrawal from the contract), bureaucracy, or monitoring can also influence [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0017 --window 500`
+
+- **CLM-Canessa_2024-0003** [0.25] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Conversely, variables capturing the relevance of AECM to farmers and the opportunity of participation are frequently included, but often ineffective in explaining uptake.
+  - Evidence: Conversely, variables capturing the relevance of AECM to farmers and the opportunity of participation are frequently included, but often ineffective in explaining uptake.
   - Deep dive: `python rh2.py context CLM-Canessa_2024-0003 --window 500`
 
-- **CLM-Canessa_2024-0004** [0.5833] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: AECM can fail either because payments are too low to induce adoption or because they attract baseline-complying farmers with low or zero additionality.
-  - Evidence: Payments offered may be too small to compensate the cost incurred by the farmer
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0004 --window 500`
+- **CLM-Canessa_2024-0008** [0.25] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: They highlighted the need for an integrated understanding of how economic, behavioural and contractual factors act as both barriers and opportunities for participation in AECM, calling for a more comprehensive approach to account for the complexity of farmers’ decision-making during the design of AECM (Tyllianakis and Martin-Ortega, 2021).
+  - Evidence: They highlighted the need for an integrated understanding of how economic, behavioural and contractual factors act as both barriers and opportunities for participation in AECM, calling for a more comprehensive approach to account for the complexity of farmers’ decision-making during the design [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0008 --window 500`
 
-- **CLM-Canessa_2024-0030** [0.5] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · policy implication · `paraphrase`
-  - Claim: Alignment between AECM and farmer attitudes/operations often matters for adoption, but excessive alignment risks attracting farmers who would have complied anyway.
-  - Evidence: increasing alignment between the AECM and farmer objectives excessively could aggravate selection biases undermining the AECM’s capacity to achieve environmental objectives
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0030 --window 500`
-
-- **CLM-Canessa_2024-0001** [0.3333] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: Because AECM are voluntary, farmer participation is the first indicator of programme success and eventual environmental effectiveness.
-  - Evidence: Due to the voluntary nature of agri-environmental-climate measures (AECM), adequate and effective participation of farmers in these initiatives is the first key indicator of their success and, eventually, their effectiveness.
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0001 --window 500`
-
-- **CLM-Canessa_2024-0002** [0.25] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: Effective participation requires not only many farmers but the right types of farmers, because environmental additionality depends on services that would not have been provided without the programme.
-  - Evidence: Effective participation refers to a certain number and well-targeted types of farmers implementing sustainable practices, which eventually provide additional environmental services that, counterfactually, would not have been supplied without the programme.
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0002 --window 500`
-
-- **CLM-Canessa_2024-0006** [0.25] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: Canessa et al. organise AECM participation determinants into four decision-process categories: alignment, opportunity, engagement, and contracting.
-  - Evidence: we expanded upon Whitten et al. (2013) framework by identifying eight major factors and grouping them into four categories: alignment, opportunity, engagement, and contracting.
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0006 --window 500`
+- **CLM-Canessa_2024-0014** [0.25] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: If the AECM payment offsets output losses and other costs of provision, the cost of participation for farmers should theoretically be zero (OECD, 2012).
+  - Evidence: If the AECM payment offsets output losses and other costs of provision, the cost of participation for farmers should theoretically be zero (OECD, 2012).
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0014 --window 500`
 
 
 ## Evidence gaps and methodological implications
@@ -158,32 +159,32 @@ Writing goal: Identify variables that are undermeasured and justify why the thes
 
 Query: `undermeasured social context contract design engagement transaction cost standardized behavioural indicators research gaps`
 
-- **CLM-Canessa_2024-0033** [0.3846] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · methodological claim · `paraphrase`
-  - Claim: Future adoption research should use more standardised indicators for behavioural factors and transaction costs.
-  - Evidence: researchers should work towards developing more standardized indicators for behavioural factors (e.g., awareness, environmental attitudes, openness to innovation, risk preferences) and transaction costs
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0033 --window 500`
+- **CLM-Canessa_2024-0017** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: Overall design of the measure: While certain contract attributes, such as increased payment, positively affect the probability of participation, other elements related to flexibility (e.g., plot or practice selection, withdrawal from the contract), bureaucracy, or monitoring can also influence farmers’ decisions to participate in AECM (Raina et al., 2021).
+  - Evidence: Overall design of the measure: While certain contract attributes, such as increased payment, positively affect the probability of participation, other elements related to flexibility (e.g., plot or practice selection, withdrawal from the contract), bureaucracy, or monitoring can also influence [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0017 --window 500`
 
-- **CLM-Canessa_2024-0015** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · methodological claim · `paraphrase`
-  - Claim: The literature often over-measures alignment and opportunity variables while under-measuring engagement, contracting and transaction-cost variables.
-  - Evidence: variables explaining engagement or contracting are less frequently observed. Yet, despite being occasionally observed, engagement and contracting variables hold a high share of significance, as do transaction cost variables
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0015 --window 500`
+- **CLM-Canessa_2024-0032** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · method_card · methodological claim · `source_range`
+  - Claim: To encourage the participation of farmers with higher opportunity costs, AECM implementers can either increase incentives through tailored methods like auctions or differentiated payments (Rolfe et al., 2021; Schaub et al., 2023), or invest in nudging and signalling strategies (Kuhfuss et al., 2016). [Specific policy levers for overcoming financial PBC barriers; supports §6 policy recommendations on payment differentiation and norm-based incentives for RQ3] For a more comprehensive understanding of farmers’ opportunity costs, future research should enhance opportunity assessments, clarify interpretation and measurement of variables, consider external factors like political uncertainty and market conditions, and control for confounders in their analyses.
+  - Evidence: To encourage the participation of farmers with higher opportunity costs, AECM implementers can either increase incentives through tailored methods like auctions or differentiated payments (Rolfe et al., 2021; Schaub et al., 2023), or invest in nudging and signalling strategies (Kuhfuss et al., [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0032 --window 500`
 
-- **CLM-Canessa_2024-0029** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · policy implication · `paraphrase`
-  - Claim: Some participation determinants are not easily changed by regulators, while information, organisational engagement and scheme design improvements are more actionable in the short to medium term.
-  - Evidence: aspects affecting participation that can be addressed by AECM implementers in the medium-short term (e.g., information, engagement with organizations, and scheme design improvements)
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0029 --window 500`
+- **CLM-Canessa_2024-0036** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: This suggests that, independently from alignment and perceived opportunity, AECM implementers should pay adequate attention to engagement requirements and elements of contract design. [Conclusion-level synthesis: engagement and contract design as highest-yield intervention points; directly supports §6 policy recommendations for RQ3 and frames informational PBC] Co-design, experimental and semi-qualitative approaches offer promising tools for guiding the institutional design of the schemes.
+  - Evidence: This suggests that, independently from alignment and perceived opportunity, AECM implementers should pay adequate attention to engagement requirements and elements of contract design. [Conclusion-level synthesis: engagement and contract design as highest-yield intervention points; directly [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0036 --window 500`
 
-- **CLM-Canessa_2024-0034** [0.2308] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · policy implication · `paraphrase`
-  - Claim: Engagement and contract design are high-yield intervention points because information, interpersonal communication and satisfaction with design were frequently significant and positively linked to adoption.
-  - Evidence: Variables reflecting the role of information and interpersonal communication, as well as farmers’ satisfaction with the AECM design, were more frequently significant and positively linked to adoption
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0034 --window 500`
+- **CLM-Canessa_2024-0008** [0.1538] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: They highlighted the need for an integrated understanding of how economic, behavioural and contractual factors act as both barriers and opportunities for participation in AECM, calling for a more comprehensive approach to account for the complexity of farmers’ decision-making during the design of AECM (Tyllianakis and Martin-Ortega, 2021).
+  - Evidence: They highlighted the need for an integrated understanding of how economic, behavioural and contractual factors act as both barriers and opportunities for participation in AECM, calling for a more comprehensive approach to account for the complexity of farmers’ decision-making during the design [...]
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0008 --window 500`
 
-- **CLM-Canessa_2024-0005** [0.1538] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · theoretical claim · `paraphrase`
-  - Claim: The theory of planned behaviour is explicitly relevant to AECM adoption because it links intentions and behaviour to attitudes, subjective norms, and perceived behavioural control.
-  - Evidence: the theory of planned behaviour considers how individual intentions and behaviours are being influenced by personal attitudes, perceived social pressure (i.e., subjective norms), and perceived behavioural control
+- **CLM-Canessa_2024-0002** [0.0769] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: Earlier literature reviews provide certain insights, but have not yet clarified how the evidence on adoption can be optimally applied to AECM design.
+  - Evidence: Earlier literature reviews provide certain insights, but have not yet clarified how the evidence on adoption can be optimally applied to AECM design.
+  - Deep dive: `python rh2.py context CLM-Canessa_2024-0002 --window 500`
+
+- **CLM-Canessa_2024-0005** [0.0769] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: WTO alignment, along with the ease of implementation, monitoring, and general acceptability by farmers, collectively favour a predominant farmer preference of action-over result-based AECM (Burton and Schwarz, 2013).
+  - Evidence: WTO alignment, along with the ease of implementation, monitoring, and general acceptability by farmers, collectively favour a predominant farmer preference of action-over result-based AECM (Burton and Schwarz, 2013).
   - Deep dive: `python rh2.py context CLM-Canessa_2024-0005 --window 500`
-
-- **CLM-Canessa_2024-0013** [0.1538] grade:C · Canessa; Ait-Sidhoum; Wunder; Sauer (2024) p.? · needs_page_check · policy implication · `paraphrase`
-  - Claim: Farmers generally prefer AECM contracts that are simple, understandable and flexible, while flat payments can deter farmers with high compliance costs.
-  - Evidence: farmers receive a flat payment that is not customized to the heterogeneity of compliance costs. This can deter those with high compliance costs from participating.
-  - Deep dive: `python rh2.py context CLM-Canessa_2024-0013 --window 500`

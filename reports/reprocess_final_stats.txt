@@ -1,0 +1,12 @@
+sources: 3
+spans: 690
+source_cards: 85
+claim_tags: 157
+claim_relations: 0
+source_references: 229
+citation_contexts: 542
+citation_location_suggestions: 0
+review_events: 0
+review_labels: 0
+db_bytes: 1155072
+blob_bytes: 76461

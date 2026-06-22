@@ -13,14 +13,14 @@ Purpose: Demonstrate how a chapter profile gathers claim cards for a writing tas
 
 ## Coverage
 
-- Claims: 15
-- Sources: {'BadenBohm_2023': 15}
-- Statuses: {'candidate_needs_review': 15}
+- Claims: 5
+- Sources: {'BadenBohm_2023': 5}
+- Statuses: {'candidate_needs_review': 5}
 
 ## Warnings
 
 - No verified claims in this chapter brief; use candidate claims for drafting only after review.
-- Required topics not represented in retrieved claims: ['limitations']
+- Required topics not represented in retrieved claims: ['biodiversity measures', 'landscape context', 'limitations']
 
 ## Core result: biodiversity measures and colony density
 
@@ -28,45 +28,20 @@ Writing goal: Summarize the main modelled effects on Bombus terrestris colony de
 
 Query: `biodiversity measures significant positive effect number of colonies pollen nectar food resources nesting habitat`
 
-- **CLM-BadenBohm_2023-0007** [0.7692] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.1 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Pollen and nectar supplied by biodiversity measures had positive effects in all three landscapes, while the effect of added nesting habitat varied among landscapes.
-  - Evidence: Further analysis showed that the pollen and nectar supplied by biodiversity measures had positive effects in all three landscapes, while the effect of additional nesting habitat differed among landscapes.
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0007 --window 500`
-
-- **CLM-BadenBohm_2023-0012** [0.6923] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.5 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: In Havelland, biodiversity measures providing food increased colony numbers significantly relative to BAU, but additional nesting habitat had no effect.
-  - Evidence: In Havelland (8.8% semi-natural habitats, max. 44% mass-flowering crops and max. 9.7% biodiversity measures; Fig. 1), the implementation of biodiversity measures providing food resources increased the number of colonies significantly compared to the BAU scenario, but additional nesting habitat [...]
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0012 --window 500`
-
-- **CLM-BadenBohm_2023-0013** [0.6154] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.5 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: In Lower Bavaria and Rhine-Hesse, biodiversity measures had an additional positive effect when they offered nesting habitat as well as food resources.
-  - Evidence: In Lower Bavaria (5.4%, max. 2.6% and max. 5.6%; Fig. 1) and Rhine-Hesse (3.0%, max. 23.4%, 2.6%; Fig. 1), biodiversity measures had a positive effect through offering nesting habitat, in addition to the effect of food resources (Fig. 3).
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0013 --window 500`
-
-- **CLM-BadenBohm_2023-0015** [0.6154] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.6 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Semi-natural habitat area had a stronger positive effect on bumblebee colony numbers than biodiversity-measure area, while mass-flowering crop area was not significant.
-  - Evidence: The area of semi-natural habitats had a stronger positive effect on number of bumblebee colonies than the area of biodiversity measures, while the area of mass-flowering crops did not have a significant effect (Fig. 4; Appendix 1, Tables S3, S4).
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0015 --window 500`
-
-- **CLM-BadenBohm_2023-0006** [0.5385] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.1 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Overall, implementing biodiversity measures had a significant positive effect on the number of modelled bumblebee colonies.
-  - Evidence: We found that the implementation of biodiversity measures had a significant positive effect on the number of colonies.
+- **CLM-BadenBohm_2023-0006** [0.3846] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.6 · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Further, the simulations suggest that also additional nesting habitat provided by biodiversity measures can increase the density of bumblebee colonies although it was not effective in the study area Havelland that already showed high population densities in the BAU scenario.
+  - Evidence: Further, the simulations suggest that also additional nesting habitat provided by biodiversity measures can increase the density of bumblebee colonies although it was not effective in the study area Havelland that already showed high population densities in the BAU scenario.
   - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0006 --window 500`
 
-- **CLM-BadenBohm_2023-0018** [0.5385] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.6 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Nesting-habitat area had a stronger positive effect than pollen in the Bavarian landscape, but no effect in the other two study areas.
-  - Evidence: The area of nesting habitats had a stronger positive effect than pollen on the number of colonies in the Bavarian landscape, but no effect in the other two study areas (Fig. 6; Appendix 1, Tables S5, S6).
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0018 --window 500`
+- **CLM-BadenBohm_2023-0008** [0.3077] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: In contrast, the study area with the lowest area of semi-natural habitats (Rhine Hesse, 3.0%) had the lowest density of bumblebee colonies throughout, but showed the strongest effect of biodiversity measures, while the landscape with intermediate proportion of semi-natural habitats (Lower Bavaria, 5.4%) showed intermediate effect size in terms of effect estimates from GLS on log scale.
+  - Evidence: In contrast, the study area with the lowest area of semi-natural habitats (Rhine Hesse, 3.0%) had the lowest density of bumblebee colonies throughout, but showed the strongest effect of biodiversity measures, while the landscape with intermediate proportion of semi-natural habitats (Lower [...]
+  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0008 --window 500`
 
-- **CLM-BadenBohm_2023-0021** [0.5385] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Nesting habitat may become limiting when no more than about 5% of the landscape is suitable for nesting, making nesting-providing measures potentially stronger than food-only measures.
-  - Evidence: Our simulation results suggest that, indeed, nesting habitat may be a limiting resource if only 5% or less of the landscape are suitable for nesting and, as a consequence, that biodiversity measures offering nesting possibilities may have a stronger positive effect on pollinator populations [...]
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0021 --window 500`
-
-- **CLM-BadenBohm_2023-0031** [0.5385] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.8 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: In conclusion, biodiversity measures that provide food and nesting habitats positively affect bumblebee-colony development at landscape level.
-  - Evidence: In our study, we found out that biodiversity measures providing food and nesting habitats have positive effects on the development of bumblebee colonies at landscape level.
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0031 --window 500`
+- **CLM-BadenBohm_2023-0009** [0.1538] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Altogether, it appears that biodiversity measures may be ineffective in landscapes with comparatively high complexity and proportion of semi-natural habitats ([Scheper et al., 2013](#ref-053); [Tscharntke et al., 2012](#ref-063)).
+  - Evidence: Altogether, it appears that biodiversity measures may be ineffective in landscapes with comparatively high complexity and proportion of semi-natural habitats ([Scheper et al., 2013](#ref-053); [Tscharntke et al., 2012](#ref-063)).
+  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0009 --window 500`
 
 
 ## Landscape context and semi-natural habitats
@@ -75,44 +50,24 @@ Writing goal: Explain how semi-natural habitats and landscape composition modify
 
 Query: `semi-natural habitats landscape composition context modifies effect colony density strongest weakest effect`
 
-- **CLM-BadenBohm_2023-0024** [0.75] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: The landscape with the highest semi-natural habitat proportion had the highest colony numbers but the weakest biodiversity-measure effect, while the landscape with the lowest semi-natural habitat share had the lowest colony density and strongest measure effect.
+- **CLM-BadenBohm_2023-0008** [0.5833] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: In contrast, the study area with the lowest area of semi-natural habitats (Rhine Hesse, 3.0%) had the lowest density of bumblebee colonies throughout, but showed the strongest effect of biodiversity measures, while the landscape with intermediate proportion of semi-natural habitats (Lower Bavaria, 5.4%) showed intermediate effect size in terms of effect estimates from GLS on log scale.
   - Evidence: In contrast, the study area with the lowest area of semi-natural habitats (Rhine Hesse, 3.0%) had the lowest density of bumblebee colonies throughout, but showed the strongest effect of biodiversity measures, while the landscape with intermediate proportion of semi-natural habitats (Lower [...]
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0024 --window 500`
-
-- **CLM-BadenBohm_2023-0032** [0.75] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.8 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: The authors conclude that landscape composition modifies biodiversity-measure effects and that semi-natural habitat area positively affects B. terrestris colony density.
-  - Evidence: The landscape composition can modify the effect of biodiversity measures. In particular, the area of semi-natural habitats affects positively the colony density of _B. terrestris_.
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0032 --window 500`
-
-- **CLM-BadenBohm_2023-0008** [0.5833] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.1 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Mass-flowering crops had little to no significant effect on colony numbers, whereas semi-natural habitats had a markedly positive effect.
-  - Evidence: Mass-flowering crops had little to no significant effect on the number of bumblebee colonies, whereas semi- natural habitats had a markedly positive effect.
   - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0008 --window 500`
 
-- **CLM-BadenBohm_2023-0015** [0.5833] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.6 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Semi-natural habitat area had a stronger positive effect on bumblebee colony numbers than biodiversity-measure area, while mass-flowering crop area was not significant.
-  - Evidence: The area of semi-natural habitats had a stronger positive effect on number of bumblebee colonies than the area of biodiversity measures, while the area of mass-flowering crops did not have a significant effect (Fig. 4; Appendix 1, Tables S3, S4).
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0015 --window 500`
+- **CLM-BadenBohm_2023-0011** [0.3333] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.8 · candidate_needs_review · policy_design_card · policy implication · `source_range`
+  - Claim: Altogether, both the effectiveness and relative importance of biodiversity measures may vary depending on the surrounding landscape with respect to floral resources and possibility for nesting and hibernating ([Krimmer et al., 2019](#ref-036); [Scheper et al., 2015](#ref-054); [Schubert et al., 2022](#ref-056)). [Krimmer et al. (2019)](#ref-036) suggested that smaller flower fields should be implemented in landscapes with high proportion of semi-natural habitats and larger ones in landscapes with low proportion of semi-natural habitats.
+  - Evidence: Altogether, both the effectiveness and relative importance of biodiversity measures may vary depending on the surrounding landscape with respect to floral resources and possibility for nesting and hibernating ([Krimmer et al., 2019](#ref-036); [Scheper et al., 2015](#ref-054); [Schubert et [...]
+  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0011 --window 500`
 
-- **CLM-BadenBohm_2023-0009** [0.5] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.1 · candidate_needs_review · policy implication · `paraphrase`
-  - Claim: The authors argue that biodiversity-measure effectiveness should be interpreted in relation to overall landscape composition, especially semi-natural habitat proportion.
-  - Evidence: Our study underlines that not only biodiversity measures are likely to affect the bumblebee population, but that the overall landscape composition, particularly proportion of semi-natural habitats, is also important. So, to achieve high effectiveness of biodiversity measures, landscape context [...]
+- **CLM-BadenBohm_2023-0009** [0.25] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Altogether, it appears that biodiversity measures may be ineffective in landscapes with comparatively high complexity and proportion of semi-natural habitats ([Scheper et al., 2013](#ref-053); [Tscharntke et al., 2012](#ref-063)).
+  - Evidence: Altogether, it appears that biodiversity measures may be ineffective in landscapes with comparatively high complexity and proportion of semi-natural habitats ([Scheper et al., 2013](#ref-053); [Tscharntke et al., 2012](#ref-063)).
   - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0009 --window 500`
 
-- **CLM-BadenBohm_2023-0012** [0.5] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.5 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: In Havelland, biodiversity measures providing food increased colony numbers significantly relative to BAU, but additional nesting habitat had no effect.
-  - Evidence: In Havelland (8.8% semi-natural habitats, max. 44% mass-flowering crops and max. 9.7% biodiversity measures; Fig. 1), the implementation of biodiversity measures providing food resources increased the number of colonies significantly compared to the BAU scenario, but additional nesting habitat [...]
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0012 --window 500`
-
-- **CLM-BadenBohm_2023-0026** [0.4167] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: The study found a stronger effect of semi-natural habitats, mainly field margins and hedges, than of the investigated biodiversity measures.
-  - Evidence: With respect to the importance of different habitats, we found a stronger effect of semi-natural habitats (here: mainly field margins and hedges) than of the investigated biodiversity measures (Appendix 1, Table S3 and S4).
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0026 --window 500`
-
-- **CLM-BadenBohm_2023-0006** [0.3333] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.1 · candidate_needs_review · empirical finding · `paraphrase`
-  - Claim: Overall, implementing biodiversity measures had a significant positive effect on the number of modelled bumblebee colonies.
-  - Evidence: We found that the implementation of biodiversity measures had a significant positive effect on the number of colonies.
+- **CLM-BadenBohm_2023-0006** [0.0833] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.6 · candidate_needs_review · result_claim · empirical finding · `source_range`
+  - Claim: Further, the simulations suggest that also additional nesting habitat provided by biodiversity measures can increase the density of bumblebee colonies although it was not effective in the study area Havelland that already showed high population densities in the BAU scenario.
+  - Evidence: Further, the simulations suggest that also additional nesting habitat provided by biodiversity measures can increase the density of bumblebee colonies although it was not effective in the study area Havelland that already showed high population densities in the BAU scenario.
   - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0006 --window 500`
 
 
@@ -122,12 +77,7 @@ Writing goal: Surface limitations that must constrain interpretation.
 
 Query: `limitation model phenology annual variation grassland forest not defined food nesting habitats underestimated`
 
-- **CLM-BadenBohm_2023-0035** [0.6667] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.8 · candidate_needs_review · limitation · `paraphrase`
-  - Claim: A limitation is that grassland and forest were not defined as food or nesting habitats because management data were lacking, likely underrating their importance for bumblebees.
-  - Evidence: Grassland and forest were not defined as food and/or nesting habitats. We did not have enough information about management type and intensity, so that their importance for bumblebees was likely underrated in the models.
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0035 --window 500`
-
-- **CLM-BadenBohm_2023-0034** [0.4167] grade:C · Baden-Böhm; Dauber; Thiele (2023) p.8 · candidate_needs_review · limitation · `paraphrase`
-  - Claim: A limitation is that plant phenology was held constant in the models despite annual weather-driven variation, and changes in plant species composition/richness over years were not considered.
-  - Evidence: In reality, the phenology of plants is subject to annual variation depending on the weather patterns, but in the models, it is held constant in every year. Furthermore, changes in plant species composition, richness of flowering species over the years ([Frank et al., 2012]( ); [Tscharntke et [...]
-  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0034 --window 500`
+- **CLM-BadenBohm_2023-0007** [0.1667] grade:B · Baden-Böhm; Dauber; Thiele (2023) p.7 · candidate_needs_review · limitation_card · limitation · `source_range`
+  - Claim: According to [Westrich (1996)](#ref-070), there is a lack of favourable nesting sites in intensively managed landscapes because Greenleaf there is a frequent disturbance regime in agricultural fields ( et al., 2007; Holzschuh et al., 2007; Kremen et al., 2007) and, consequently, bumblebees are forced to nest and hibernate in semi-natural habitats, such as hedges and field margins ([Cole et al., 2020](#ref-013); [Hopfenmüller et al., 2014](#ref-026); [Köhler et al., 2008](#ref-033); [Marshall and Moonen, 2002](#ref-039); [Scheper et al., 2015](#ref-054); [Svensson et al., 2000](#ref-059)). [Lye et al. (2009)](#ref-037) showed that field margins are even more attractive nesting habitats than hedgerows for spring queens during the period of colony foundation.
+  - Evidence: According to [Westrich (1996)](#ref-070), there is a lack of favourable nesting sites in intensively managed landscapes because Greenleaf there is a frequent disturbance regime in agricultural fields ( et al., 2007; Holzschuh et al., 2007; Kremen et al., 2007) and, consequently, bumblebees are [...]
+  - Deep dive: `python rh2.py context CLM-BadenBohm_2023-0007 --window 500`
