@@ -144,7 +144,7 @@ def main():
 
     sources = [dict(r) for r in conn.execute("SELECT * FROM sources ORDER BY source_id")]
     source_by_id = {s["source_id"]: s for s in sources}
-    claims = [dict(r) for r in conn.execute("SELECT * FROM claims ORDER BY source_id, claim_id")]
+    claims = [dict(r) for r in conn.execute("SELECT * FROM source_cards ORDER BY source_id, claim_id")]
     tag_rows = [dict(r) for r in conn.execute("SELECT claim_id, tag_type, tag FROM claim_tags ORDER BY claim_id, tag_type, tag")]
     relation_rows = [dict(r) for r in conn.execute("SELECT * FROM claim_relations ORDER BY created_at DESC")]
     tags_by_claim = defaultdict(list)
@@ -288,6 +288,7 @@ def main():
         "notes": "Static export. Full source texts are intentionally not included; only metadata, claims, evidence excerpts and bounded context snippets are exported.",
         "sources": sources,
         "claims": claim_cards,
+        "source_cards": claim_cards,
         "stats": stats,
         "relations": relation_rows,
         "network": {"nodes": nodes, "edges": edges, "paper_edges": paper_edges},

@@ -1,6 +1,6 @@
 # Research Harness V2
 
-V2 is the cleaner, SQLite-first version of the claim-ledger harness.
+V2 is the cleaner, SQLite-first version of the source-card / claim-ledger harness.
 
 ## Design shift from V1
 
@@ -193,7 +193,21 @@ Check stats:
 python rh2.py stats
 ```
 
-## Important concept: source-sentence claims
+## Important concept: source cards, not generic claims
+
+The canonical evidence object is now a **source card**: an exact source-backed character range with a writing role.
+
+The database table is:
+
+```text
+source_cards
+```
+
+A compatibility SQL view named `claims` remains for older queries/UI code.
+
+A source card can be a direct empirical result claim, but it can also be a method card, definition card, limitation card, background card, or policy design card. Use `card_role` to distinguish these.
+
+## Important concept: source-sentence/source-range claims
 
 V2 does not force the model to rewrite source text.
 

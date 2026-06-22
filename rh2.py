@@ -147,6 +147,12 @@ def line_no(offsets: list[int], pos: int) -> int:
 
 def init_db(quiet: bool=False) -> None:
     conn=db(); cur=conn.cursor()
+    # One-time migration: the canonical table is now source_cards.
+    # Keep a read-only compatibility view named `claims` for older queries/UI language.
+    existing_tables = {r[0] for r in cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    existing_views = {r[0] for r in cur.execute("SELECT name FROM sqlite_master WHERE type='view'").fetchall()}
+    if "claims" in existing_tables and "source_cards" not in existing_tables:
+        cur.execute("ALTER TABLE claims RENAME TO source_cards")
     cur.executescript("""
     CREATE TABLE IF NOT EXISTS sources (
         source_id TEXT PRIMARY KEY,
@@ -171,7 +177,7 @@ def init_db(quiet: bool=False) -> None:
         created_at TEXT,
         FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE
     );
-    CREATE TABLE IF NOT EXISTS claims (
+    CREATE TABLE IF NOT EXISTS source_cards (
         claim_id TEXT PRIMARY KEY,
         source_id TEXT NOT NULL,
         claim TEXT NOT NULL,
@@ -196,7 +202,7 @@ def init_db(quiet: bool=False) -> None:
         tag_type TEXT,
         tag TEXT,
         PRIMARY KEY(claim_id, tag_type, tag),
-        FOREIGN KEY(claim_id) REFERENCES claims(claim_id) ON DELETE CASCADE
+        FOREIGN KEY(claim_id) REFERENCES source_cards(claim_id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS claim_relations (
         relation_id TEXT PRIMARY KEY,
@@ -205,8 +211,8 @@ def init_db(quiet: bool=False) -> None:
         note TEXT,
         status TEXT,
         created_at TEXT,
-        FOREIGN KEY(claim_a) REFERENCES claims(claim_id) ON DELETE CASCADE,
-        FOREIGN KEY(claim_b) REFERENCES claims(claim_id) ON DELETE CASCADE
+        FOREIGN KEY(claim_a) REFERENCES source_cards(claim_id) ON DELETE CASCADE,
+        FOREIGN KEY(claim_b) REFERENCES source_cards(claim_id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS source_references (
         reference_id TEXT PRIMARY KEY,
@@ -254,7 +260,7 @@ def init_db(quiet: bool=False) -> None:
         note TEXT,
         actor TEXT,
         created_at TEXT,
-        FOREIGN KEY(claim_id) REFERENCES claims(claim_id) ON DELETE CASCADE
+        FOREIGN KEY(claim_id) REFERENCES source_cards(claim_id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS query_cache (
         query_hash TEXT PRIMARY KEY,
@@ -264,11 +270,11 @@ def init_db(quiet: bool=False) -> None:
         created_at TEXT
     );
     CREATE VIRTUAL TABLE IF NOT EXISTS claims_fts USING fts5(claim_id UNINDEXED, claim, evidence, tags);
-    CREATE INDEX IF NOT EXISTS idx_claims_source ON claims(source_id);
-    CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(verification_status);
-    CREATE INDEX IF NOT EXISTS idx_claims_type ON claims(claim_type);
-    CREATE INDEX IF NOT EXISTS idx_claims_page ON claims(source_id, page);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_source_span_unique ON claims(source_id, char_start, char_end);
+    CREATE INDEX IF NOT EXISTS idx_claims_source ON source_cards(source_id);
+    CREATE INDEX IF NOT EXISTS idx_claims_status ON source_cards(verification_status);
+    CREATE INDEX IF NOT EXISTS idx_claims_type ON source_cards(claim_type);
+    CREATE INDEX IF NOT EXISTS idx_claims_page ON source_cards(source_id, page);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_claims_source_span_unique ON source_cards(source_id, char_start, char_end);
     CREATE INDEX IF NOT EXISTS idx_spans_source_kind ON spans(source_id, kind);
     CREATE INDEX IF NOT EXISTS idx_spans_offsets ON spans(source_id, char_start, char_end);
     CREATE INDEX IF NOT EXISTS idx_tags_type_tag ON claim_tags(tag_type, tag);
@@ -283,6 +289,10 @@ def init_db(quiet: bool=False) -> None:
     ensure_column(cur, "source_references", "canonical_source_id", "TEXT")
     ensure_column(cur, "citation_contexts", "reference_anchor", "TEXT")
     ensure_column(cur, "citation_contexts", "canonical_source_id", "TEXT")
+    # Recreate compatibility view if possible. External dashboards can still SELECT FROM claims.
+    cur.execute("DROP VIEW IF EXISTS claims")
+    if "claims" not in {r[0] for r in cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}:
+        cur.execute("CREATE VIEW IF NOT EXISTS claims AS SELECT * FROM source_cards")
     conn.commit(); conn.close()
     if not quiet:
         print(f"Initialized V2 DB: {DB_PATH}")
@@ -573,7 +583,7 @@ def source_ids() -> list[str]:
 
 
 def next_claim_id(source_id: str) -> str:
-    conn=db(); rows=conn.execute("SELECT claim_id FROM claims WHERE source_id=?", (source_id,)).fetchall(); conn.close()
+    conn=db(); rows=conn.execute("SELECT claim_id FROM source_cards WHERE source_id=?", (source_id,)).fetchall(); conn.close()
     nums=[]; pat=re.compile(rf"^CLM-{re.escape(source_id)}-(\d+)$")
     for r in rows:
         m=pat.match(r["claim_id"] or "")
@@ -727,7 +737,7 @@ def upsert_claim(claim: dict[str, Any], tags: dict[str, list[str]]|None=None) ->
     add_span(cur, span_id=span_id, source_id=source_id, kind="evidence", ref_id=claim_id,
              char_start=claim.get("char_start"), char_end=claim.get("char_end"), line_start=claim.get("line_start"), line_end=claim.get("line_end"),
              page_start=claim.get("page") or "", page_end=claim.get("page") or "", heading="", text=ev)
-    cur.execute("""INSERT OR REPLACE INTO claims VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+    cur.execute("""INSERT OR REPLACE INTO source_cards VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
         claim_id, source_id, claim.get("claim", ""), ev, claim.get("claim_representation", "source_quote"), claim.get("claim_type", "unknown"),
         str(claim.get("page") or ""), claim.get("page_status", ""), claim.get("verification_status", "candidate_needs_review"),
         claim.get("confidence", "medium"), claim.get("scope_note", ""), span_id,
@@ -811,13 +821,13 @@ def cmd_mark_claim(args):
         "extraction_mode": "mark_claim_v2"}
     tags={"construct": split_list(args.constructs), "rq": split_list(args.rq_tags), "discipline": split_list(args.discipline), "geography": split_list(args.geography), "methodology": split_list(args.methodology)}
     # duplicate guard by identical source span
-    conn=db(); dup=conn.execute("SELECT * FROM claims WHERE source_id=? AND char_start=? AND char_end=?", (sid, claim["char_start"], claim["char_end"])).fetchall(); conn.close()
+    conn=db(); dup=conn.execute("SELECT * FROM source_cards WHERE source_id=? AND char_start=? AND char_end=?", (sid, claim["char_start"], claim["char_end"])).fetchall(); conn.close()
     if dup and not args.allow_duplicate:
         payload={"created": False, "reason": "matching source span exists", "existing": [claim_card(r, args.fields) for r in dup], "proposed": claim}
         print_json(payload) if args.json else print_json(payload)
         return
     upsert_claim(claim,tags)
-    conn=db(); row=conn.execute("SELECT * FROM claims WHERE claim_id=?", (claim["claim_id"],)).fetchone(); conn.close()
+    conn=db(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (claim["claim_id"],)).fetchone(); conn.close()
     payload={"created": True, "claim": claim_card(row,args.fields), "chunk_span_id": chunk, "page_span_id": page_span}
     print_json(payload) if args.json else print(f"Created {claim['claim_id']} | {sid} | page {page or '?'}")
 
@@ -853,13 +863,13 @@ def cmd_mark_span(args):
         "extraction_mode": "mark_span_source_range",
     }
     tags={"construct": split_list(args.constructs), "rq": split_list(args.rq_tags), "discipline": split_list(args.discipline), "geography": split_list(args.geography), "methodology": split_list(args.methodology)}
-    conn=db(); dup=conn.execute("SELECT * FROM claims WHERE source_id=? AND char_start=? AND char_end=?", (args.source_id, start, end)).fetchall(); conn.close()
+    conn=db(); dup=conn.execute("SELECT * FROM source_cards WHERE source_id=? AND char_start=? AND char_end=?", (args.source_id, start, end)).fetchall(); conn.close()
     if dup and not args.allow_duplicate:
         payload={"created": False, "reason": "matching source range exists", "existing": [claim_card(r,args.fields) for r in dup], "proposed": claim}
         print_json(payload) if args.json else print_json(payload)
         return
     upsert_claim(claim,tags)
-    conn=db(); row=conn.execute("SELECT * FROM claims WHERE claim_id=?", (claim["claim_id"],)).fetchone(); conn.close()
+    conn=db(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (claim["claim_id"],)).fetchone(); conn.close()
     payload={"created": True, "claim": claim_card(row,args.fields)}
     print_json(payload) if args.json else print(f"Created {claim['claim_id']} | {args.source_id} | chars {start}-{end}")
 
@@ -884,7 +894,7 @@ def retrieve_claims(query: str, limit: int=8, fields: str="minimal", filters: di
             bm25[r["claim_id"]]=i+1; why.setdefault(r["claim_id"],[]).append(f"bm25#{i+1}")
     except sqlite3.OperationalError:
         pass
-    all_rows=cur.execute("SELECT * FROM claims WHERE verification_status!='rejected'").fetchall()
+    all_rows=cur.execute("SELECT * FROM source_cards WHERE verification_status!='rejected'").fetchall()
     candidates=[]
     for r in all_rows:
         d=dict(r)
@@ -921,7 +931,7 @@ def cmd_retrieve(args):
 
 
 def cmd_context(args):
-    conn=db(); row=conn.execute("SELECT * FROM claims WHERE claim_id=?", (args.claim_id,)).fetchone(); conn.close()
+    conn=db(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (args.claim_id,)).fetchone(); conn.close()
     if not row: raise SystemExit(f"Unknown claim_id: {args.claim_id}")
     d=dict(row); text=read_source_text(d["source_id"])
     if args.mode == "full":
@@ -969,7 +979,7 @@ def cmd_resolve_handle(args):
         return
     m=re.match(r"^CLAIM\[([^\]]+)\]$", h)
     if m:
-        cid=m.group(1); conn=db(); row=conn.execute("SELECT * FROM claims WHERE claim_id=?", (cid,)).fetchone(); conn.close()
+        cid=m.group(1); conn=db(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (cid,)).fetchone(); conn.close()
         if not row: raise SystemExit(f"Unknown claim handle: {cid}")
         d=dict(row); ctx=sentence_aware_context(d["source_id"], int(d["char_start"] or 0), int(d["char_end"] or d["char_start"] or 0), radius=args.sentence_radius, outside_paragraph=args.outside_paragraph)
         payload={"handle":h,"kind":"claim","claim":claim_card(d,"standard"),"source_range":source_range_handle(d["source_id"], d["char_start"], d["char_end"]), **ctx}
@@ -993,7 +1003,7 @@ def cmd_resolve_handle(args):
 def section_map_for_source(source_id: str, max_claims_per_section: int = 5) -> dict[str, Any]:
     text=read_source_text(source_id)
     conn=db(); src=conn.execute("SELECT * FROM sources WHERE source_id=?", (source_id,)).fetchone()
-    claims=[dict(r) for r in conn.execute("SELECT * FROM claims WHERE source_id=? AND verification_status!='rejected' ORDER BY char_start, claim_id", (source_id,)).fetchall()]
+    claims=[dict(r) for r in conn.execute("SELECT * FROM source_cards WHERE source_id=? AND verification_status!='rejected' ORDER BY char_start, claim_id", (source_id,)).fetchall()]
     cites=[dict(r) for r in conn.execute("SELECT * FROM citation_contexts WHERE citing_source_id=? ORDER BY char_start", (source_id,)).fetchall()]
     conn.close()
     sections=heading_spans(text)
@@ -1137,10 +1147,10 @@ def cmd_chapter_brief(args):
         if sec.get("statuses"): filters["statuses"]=sec.get("statuses")
         cards=retrieve_claims(q, sec.get("limit", args.limit), "standard", filters)
         for card in cards: used.add(card["claim_id"])
-        sections.append({"section_id": sec.get("section_id"), "heading": sec.get("heading"), "writing_goal": sec.get("writing_goal", ""), "query": q, "claims": cards})
+        sections.append({"section_id": sec.get("section_id"), "heading": sec.get("heading"), "writing_goal": sec.get("writing_goal", ""), "query": q, "source_cards": cards, "claims": cards})
     conn=db()
-    status_counts={r["verification_status"]: r["n"] for r in conn.execute(f"SELECT verification_status, COUNT(*) n FROM claims WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY verification_status", list(used)).fetchall()} if used else {}
-    source_counts={r["source_id"]: r["n"] for r in conn.execute(f"SELECT source_id, COUNT(*) n FROM claims WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY source_id", list(used)).fetchall()} if used else {}
+    status_counts={r["verification_status"]: r["n"] for r in conn.execute(f"SELECT verification_status, COUNT(*) n FROM source_cards WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY verification_status", list(used)).fetchall()} if used else {}
+    source_counts={r["source_id"]: r["n"] for r in conn.execute(f"SELECT source_id, COUNT(*) n FROM source_cards WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY source_id", list(used)).fetchall()} if used else {}
     conn.close()
     warnings=list(prof.get("profile_warnings", []))
     if status_counts.get("verified",0)==0 and used: warnings.append("No verified claims in this chapter brief; use candidate claims for drafting only after review.")
@@ -1183,7 +1193,7 @@ def render_chapter_brief_md(packet: dict[str, Any]) -> str:
         lines += ["", "## Warnings", ""] + [f"- {w}" for w in packet["warnings"]]
     for sec in packet.get("sections", []):
         lines += ["", f"## {sec.get('heading') or sec.get('section_id')}", "", f"Writing goal: {sec.get('writing_goal','')}", "", f"Query: `{sec.get('query','')}`", ""]
-        for c in sec.get("claims", []):
+        for c in sec.get("source_cards") or sec.get("claims", []):
             lines.append(f"- **{c['claim_id']}** [{c['score']}] grade:{c.get('evidence_grade')} · {c['citation_hint']} p.{c.get('page') or '?'} · {c['status']} · {c.get('card_role')} · {c['claim_type']} · `{c.get('claim_representation')}`")
             lines.append(f"  - Claim: {c['claim']}")
             lines.append(f"  - Evidence: {short(c.get('evidence',''), 300)}")
@@ -1334,7 +1344,7 @@ def cmd_extract_source_ranges(args):
         return
     created=[]; skipped=[]
     conn=db()
-    existing={(r[0],r[1],r[2]) for r in conn.execute("SELECT source_id,char_start,char_end FROM claims WHERE source_id=?", (args.source_id,)).fetchall()}
+    existing={(r[0],r[1],r[2]) for r in conn.execute("SELECT source_id,char_start,char_end FROM source_cards WHERE source_id=?", (args.source_id,)).fetchall()}
     conn.close()
     for c in cands:
         key=(args.source_id,c["char_start"],c["char_end"])
@@ -1435,7 +1445,7 @@ def cmd_paper_search(args):
 
 
 def all_claim_cards_for_source(source_id: str, fields: str = "standard", status: str | None = None, verified_only: bool=False, claim_type: str | None=None, card_role_filter: str | None=None) -> list[dict[str, Any]]:
-    conn=db(); rows=[dict(r) for r in conn.execute("SELECT * FROM claims WHERE source_id=? AND verification_status!='rejected' ORDER BY char_start, claim_id", (source_id,)).fetchall()]; conn.close()
+    conn=db(); rows=[dict(r) for r in conn.execute("SELECT * FROM source_cards WHERE source_id=? AND verification_status!='rejected' ORDER BY char_start, claim_id", (source_id,)).fetchall()]; conn.close()
     allowed_status=split_list(status)
     allowed_type=split_list(claim_type)
     allowed_role=split_list(card_role_filter)
@@ -1462,7 +1472,7 @@ def cmd_paper_brief(args):
             if args.token_budget and kept and total_tokens+cost > args.token_budget:
                 continue
             kept.append(c); total_tokens += cost
-        sections.append({"paper":p, "claims":kept, "claim_count":len(kept)})
+        sections.append({"paper":p, "source_cards":kept, "claims":kept, "claim_count":len(kept)})
     packet={"brief_type":"paper_brief", "query":args.query, "paper_count":len(papers), "estimated_tokens":total_tokens, "papers":sections, "writing_contract":[
         "Paper selection is based on one vector per paper, not one vector per claim.",
         "If a paper is selected, use its claim cards as the relevant evidence inventory.",
@@ -1477,7 +1487,7 @@ def cmd_paper_brief(args):
     for sec in sections:
         p=sec["paper"]
         lines += ["", f"## [{p['score']}] {p['source_id']} — {p.get('title')}", f"Authors/year: {p.get('authors')} ({p.get('year')})", f"Claims: {sec['claim_count']}", ""]
-        for c in sec["claims"]:
+        for c in sec.get("source_cards") or sec.get("claims", []):
             lines.append(f"- **{c['claim_id']}** p.{c.get('page') or '?'} · {c.get('status')} · {c.get('card_role')} · {c.get('claim_type')}: {c.get('claim')}")
             if c.get("evidence"):
                 lines.append(f"  - Evidence: {c.get('evidence')}")
@@ -1576,7 +1586,7 @@ def build_writing_brief(query: str, *, section_type: str | None = None, limit: i
             "If a claim is central to the paragraph, inspect it with `python rh2.py context CLAIM_ID --window 500` before final use.",
             "Candidate claims are not publication-safe until reviewed."
         ],
-        "claims": selected,
+        "source_cards": selected, "claims": selected,
     }
 
 
@@ -1593,7 +1603,7 @@ def render_writing_brief_md(packet: dict[str, Any]) -> str:
     if packet.get("warnings"):
         lines += ["", "## Warnings", ""] + [f"- {w}" for w in packet["warnings"]]
     lines += ["", "## Evidence cards", ""]
-    for c in packet.get("claims", []):
+    for c in packet.get("source_cards") or packet.get("claims", []):
         lines.append(f"### {c.get('claim_id')} — {c.get('citation_hint')} p.{c.get('page') or '?'}")
         lines.append(f"- Status/role/type/grade: `{c.get('status')}` / `{c.get('card_role')}` / `{c.get('claim_type')}` / `{c.get('evidence_grade')}`")
         lines.append(f"- Claim: {c.get('claim')}")
@@ -2180,11 +2190,11 @@ def cmd_verify_citation(args):
 
 
 def update_claim_evidence(cur: sqlite3.Cursor, claim_id: str, evidence: str) -> None:
-    row = cur.execute("SELECT claim, scope_note FROM claims WHERE claim_id=?", (claim_id,)).fetchone()
+    row = cur.execute("SELECT claim, scope_note FROM source_cards WHERE claim_id=?", (claim_id,)).fetchone()
     if not row:
         return
     tags = " ".join(f"{r['tag_type']}:{r['tag']}" for r in cur.execute("SELECT tag_type, tag FROM claim_tags WHERE claim_id=?", (claim_id,)).fetchall())
-    cur.execute("UPDATE claims SET evidence=?, updated_at=? WHERE claim_id=?", (evidence, now(), claim_id))
+    cur.execute("UPDATE source_cards SET evidence=?, updated_at=? WHERE claim_id=?", (evidence, now(), claim_id))
     cur.execute("DELETE FROM claims_fts WHERE claim_id=?", (claim_id,))
     cur.execute("INSERT INTO claims_fts(claim_id, claim, evidence, tags) VALUES (?,?,?,?)", (claim_id, row["claim"], evidence, tags))
 
@@ -2207,7 +2217,7 @@ def cmd_repair_evidence(args):
                 c=json.loads(line)
                 if c.get("claim_id"):
                     legacy[c["claim_id"]] = c
-    conn=db(); cur=conn.cursor(); rows=cur.execute("SELECT claim_id, claim, evidence FROM claims ORDER BY claim_id").fetchall()
+    conn=db(); cur=conn.cursor(); rows=cur.execute("SELECT claim_id, claim, evidence FROM source_cards ORDER BY claim_id").fetchall()
     changes=[]
     for r in rows:
         cid=r["claim_id"]; old_ev=r["evidence"] or ""; claim=r["claim"] or ""
@@ -2263,7 +2273,7 @@ def cmd_audit_draft(args):
     conn=db()
     known=[]; unknown=[]
     for cid in ids:
-        row=conn.execute("SELECT * FROM claims WHERE claim_id=?", (cid,)).fetchone()
+        row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (cid,)).fetchone()
         if row:
             card=claim_card(row, "standard")
             card["relations"] = claim_relations_for(cid)
@@ -2327,7 +2337,7 @@ def cmd_relate(args):
         raise SystemExit("Cannot relate a claim to itself.")
     conn=db()
     for cid in [args.claim_a, args.claim_b]:
-        if not conn.execute("SELECT 1 FROM claims WHERE claim_id=?", (cid,)).fetchone():
+        if not conn.execute("SELECT 1 FROM source_cards WHERE claim_id=?", (cid,)).fetchone():
             raise SystemExit(f"Unknown claim_id: {cid}")
     rid=args.relation_id or f"REL-{sha1_short(args.claim_a + args.claim_b + args.relation_type)[:10]}"
     conn.execute("""INSERT OR REPLACE INTO claim_relations VALUES (?,?,?,?,?,?,?)""", (
@@ -2354,7 +2364,7 @@ def cmd_relations(args):
 
 
 def cmd_evidence_grades(args):
-    conn=db(); rows=conn.execute("SELECT * FROM claims ORDER BY source_id, claim_id").fetchall(); conn.close()
+    conn=db(); rows=conn.execute("SELECT * FROM source_cards ORDER BY source_id, claim_id").fetchall(); conn.close()
     items=[]
     for r in rows:
         g=evidence_grade(r)
@@ -2369,7 +2379,7 @@ def cmd_evidence_grades(args):
 
 def cmd_stats(args):
     conn=db(); cur=conn.cursor()
-    tables=["sources","spans","claims","claim_tags","claim_relations","source_references","citation_contexts","review_events"]
+    tables=["sources","spans","source_cards","claim_tags","claim_relations","source_references","citation_contexts","review_events"]
     stats={}
     for t in tables:
         try: stats[t]=cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -2381,10 +2391,10 @@ def cmd_stats(args):
 
 
 def cmd_review(args):
-    conn=db(); row=conn.execute("SELECT verification_status FROM claims WHERE claim_id=?", (args.claim_id,)).fetchone()
+    conn=db(); row=conn.execute("SELECT verification_status FROM source_cards WHERE claim_id=?", (args.claim_id,)).fetchone()
     if not row: raise SystemExit(f"Unknown claim_id: {args.claim_id}")
     old=row["verification_status"]
-    conn.execute("UPDATE claims SET verification_status=?, updated_at=? WHERE claim_id=?", (args.status, now(), args.claim_id))
+    conn.execute("UPDATE source_cards SET verification_status=?, updated_at=? WHERE claim_id=?", (args.status, now(), args.claim_id))
     conn.execute("INSERT INTO review_events VALUES (?,?,?,?,?,?,?)", (str(uuid.uuid4()), args.claim_id, old, args.status, args.note or "", args.actor or "human", now()))
     conn.commit(); conn.close(); print(f"{args.claim_id}: {old} -> {args.status}")
 
