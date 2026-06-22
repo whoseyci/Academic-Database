@@ -177,6 +177,16 @@ This classifies upstream cited sources by how they support a chapter section, e.
 
 Reference identities are now stable: DOI-backed references use DOI-derived canonical IDs, while non-DOI references use deterministic `author + first title word + year` IDs.
 
+Suggest likely support locations inside the backtracked/cited paper:
+
+```bash
+python rh2.py suggest-cited-claim-location CITCTX-Canessa_2024-00001 --limit 10
+python rh2.py suggest-cited-claim-location CITCTX-Canessa_2024-00001 --store --json
+python rh2.py citation-location-suggestions --context-id CITCTX-Canessa_2024-00001
+python rh2.py verify-location CLOC-... accepted --note "Best support location."
+python rh2.py accept-citation-location CLOC-... --citing-claim-id CLAIM_ID --relation-type supports
+```
+
 Audit a draft for claim traceability:
 
 ```bash

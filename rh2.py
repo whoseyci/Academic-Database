@@ -274,6 +274,30 @@ def init_db(quiet: bool=False) -> None:
     );
     CREATE INDEX IF NOT EXISTS idx_review_labels_claim ON review_labels(claim_id);
     CREATE INDEX IF NOT EXISTS idx_review_labels_label ON review_labels(label);
+    CREATE TABLE IF NOT EXISTS citation_location_suggestions (
+        suggestion_id TEXT PRIMARY KEY,
+        context_id TEXT NOT NULL,
+        matched_source_id TEXT,
+        target_type TEXT,
+        target_id TEXT,
+        source_id TEXT,
+        char_start INTEGER,
+        char_end INTEGER,
+        page_start TEXT,
+        page_end TEXT,
+        score REAL,
+        score_json TEXT,
+        query_text TEXT,
+        matched_text TEXT,
+        suggested_relation TEXT,
+        status TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        FOREIGN KEY(context_id) REFERENCES citation_contexts(context_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_cls_context ON citation_location_suggestions(context_id);
+    CREATE INDEX IF NOT EXISTS idx_cls_target ON citation_location_suggestions(target_type, target_id);
+    CREATE INDEX IF NOT EXISTS idx_cls_status ON citation_location_suggestions(status);
     CREATE TABLE IF NOT EXISTS query_cache (
         query_hash TEXT PRIMARY KEY,
         query TEXT,
@@ -2879,10 +2903,252 @@ def cmd_split_claim(args):
     print_json({"split_from": args.claim_id, "created": created}) if args.json else print(f"Created {len(created)} split claims: {', '.join(created)}")
 
 
+PAGE_LOCATOR_RE = re.compile(r"\bpp?\.\s*(\d{1,5})(?:\s*[–—-]\s*(\d{1,5}))?", re.I)
+
+
+def parse_citation_locator(*texts: str) -> dict[str, Any]:
+    raw=" ".join(str(t or "") for t in texts)
+    m=PAGE_LOCATOR_RE.search(raw)
+    if not m:
+        return {"locator_raw":"", "page_start":"", "page_end":"", "pages":[]}
+    start=m.group(1); end=m.group(2) or start
+    pages=[]
+    try:
+        a,b=int(start),int(end)
+        if a <= b and b-a <= 50:
+            pages=[str(x) for x in range(a,b+1)]
+    except Exception:
+        pages=[start]
+    return {"locator_raw": m.group(0), "page_start": start, "page_end": end, "pages": pages}
+
+
+def normalize_citation_query(ctx: dict[str, Any]) -> str:
+    text=" ".join([ctx.get("context_text") or "", ctx.get("citation_text") or ""])
+    # Remove parenthetical citation clutter but preserve substantive words around it.
+    text=re.sub(r"\([^)]{0,160}\b\d{4}[a-z]?[^)]{0,160}\)", " ", text)
+    text=re.sub(r"\bpp?\.\s*\d{1,5}(?:\s*[–—-]\s*\d{1,5})?", " ", text, flags=re.I)
+    text=re.sub(r"\s+", " ", text).strip()
+    return text or (ctx.get("context_text") or ctx.get("citation_text") or "")
+
+
+def citation_section_prior(function: str, heading: str, text: str) -> tuple[float, str]:
+    f=norm(function); h=norm(heading); t=norm(text[:500])
+    hay=" ".join([h,t])
+    priors={
+        "definition": ["definition", "theory", "background", "introduction", "conceptual"],
+        "method_or_framework": ["method", "model", "data", "framework", "approach"],
+        "supporting_evidence": ["result", "finding", "discussion", "analysis"],
+        "contradiction_or_qualification": ["discussion", "limitation", "result", "conclusion"],
+        "background": ["introduction", "background", "literature", "review"],
+    }
+    keys=priors.get(f, [])
+    for k in keys:
+        if k in hay:
+            return 0.12, f"section_prior:{k}"
+    return 0.0, ""
+
+
+def infer_relation_from_citation_function(function: str) -> str:
+    f=norm(function)
+    if "contradiction" in f or "qualification" in f:
+        return "qualifies"
+    if "method" in f or "framework" in f:
+        return "supports"
+    if "definition" in f or "background" in f:
+        return "supports"
+    return "supports"
+
+
+def page_match_score(candidate_page: str|None, locator: dict[str, Any]) -> tuple[float, str]:
+    pages=set(locator.get("pages") or [])
+    if not pages:
+        return 0.0, ""
+    if candidate_page and str(candidate_page) in pages:
+        return 0.25, "page_match"
+    return -0.08, "page_mismatch"
+
+
+def citation_candidate_score(query: str, candidate_text: str, *, page: str|None, locator: dict[str, Any], function: str, heading: str="", status: str="", grade: str="") -> tuple[float, dict[str, Any]]:
+    lex=token_overlap_score(query, candidate_text)
+    phrase_bonus=0.0
+    qnorm=norm(query)
+    cnorm=norm(candidate_text)
+    for phrase in sorted({w for w in re.findall(r"[A-Za-z][A-Za-z -]{6,40}", qnorm) if len(w.split()) >= 2}, key=len, reverse=True)[:6]:
+        if phrase in cnorm:
+            phrase_bonus += 0.03
+    pscore, pwhy=page_match_score(page, locator)
+    sscore, swhy=citation_section_prior(function, heading, candidate_text)
+    grade_bonus={"A":0.08,"B":0.05,"C":0.02,"D":0.0,"X":-0.2}.get(grade,0.0)
+    status_bonus={"verified":0.08,"needs_page_check":0.02,"candidate_needs_review":0.01,"needs_source_check":0.0,"superseded":-0.2,"rejected":-0.3}.get(status,0.0)
+    score=max(0.0, lex*0.55 + phrase_bonus + pscore + sscore + grade_bonus + status_bonus)
+    why={"lexical_overlap": round(lex,4), "phrase_bonus": round(phrase_bonus,4), "page_score": pscore, "section_score": sscore, "grade_bonus": grade_bonus, "status_bonus": status_bonus, "why": [x for x in [pwhy,swhy] if x]}
+    return score, why
+
+
+def candidate_page_for_span(source_id: str, start: int|None) -> str|None:
+    try:
+        return page_for_char(source_id, start)[0]
+    except Exception:
+        return None
+
+
+def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_claims: bool=True, include_spans: bool=True, min_score: float=0.05) -> dict[str, Any]:
+    init_db(True)
+    conn=db(); ctx=conn.execute("SELECT * FROM citation_contexts WHERE context_id=?", (context_id,)).fetchone()
+    if not ctx:
+        conn.close(); raise SystemExit(f"Unknown context_id: {context_id}")
+    c=dict(ctx)
+    target_source=c.get("matched_source_id")
+    if not target_source:
+        conn.close(); return {"context_id": context_id, "error": "citation context has no matched_source_id", "suggestions": []}
+    query=normalize_citation_query(c)
+    locator=parse_citation_locator(c.get("citation_text"), c.get("context_text"))
+    suggestions=[]
+    relation=infer_relation_from_citation_function(c.get("citation_function") or "")
+
+    if include_claims:
+        rows=conn.execute("SELECT * FROM source_cards WHERE source_id=? AND verification_status!='rejected'", (target_source,)).fetchall()
+        for r in rows:
+            d=dict(r); card=claim_card(d, "standard")
+            text=" ".join([card.get("claim") or "", card.get("evidence") or "", card.get("scope_note") or ""])
+            score, why=citation_candidate_score(query, text, page=card.get("page"), locator=locator, function=c.get("citation_function") or "", status=card.get("status") or "", grade=card.get("evidence_grade") or "")
+            if score >= min_score:
+                suggestions.append({"target_type":"claim", "target_id":card["claim_id"], "source_id":target_source, "char_start":d.get("char_start"), "char_end":d.get("char_end"), "page_start":card.get("page") or "", "page_end":card.get("page") or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":claim_handle(card["claim_id"])})
+
+    if include_spans:
+        source_text=""
+        try:
+            source_text=read_source_text(target_source)
+        except SystemExit:
+            source_text=""
+        if source_text:
+            span_rows=conn.execute("SELECT * FROM spans WHERE source_id=? AND kind IN ('paragraph','chunk','page') ORDER BY kind, char_start", (target_source,)).fetchall()
+            for sp in span_rows:
+                d=dict(sp)
+                start=d.get("char_start"); end=d.get("char_end")
+                if start is None or end is None: continue
+                try:
+                    text=source_text[int(start):int(end)].strip()
+                except Exception:
+                    continue
+                if not text or len(text) < 40: continue
+                page=d.get("page_start") or candidate_page_for_span(target_source, start) or ""
+                score, why=citation_candidate_score(query, text, page=page, locator=locator, function=c.get("citation_function") or "", heading=d.get("heading") or "")
+                if score >= min_score:
+                    suggestions.append({"target_type":d.get("kind") or "span", "target_id":d.get("span_id"), "source_id":target_source, "char_start":start, "char_end":end, "page_start":page, "page_end":d.get("page_end") or page or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":source_range_handle(target_source, int(start), int(end))})
+    conn.close()
+    # Deduplicate exact ranges/claims and prefer higher scores.
+    by_key={}
+    for s in suggestions:
+        key=(s["target_type"], s.get("target_id"), s.get("char_start"), s.get("char_end"))
+        if key not in by_key or s["score"] > by_key[key]["score"]:
+            by_key[key]=s
+    ranked=sorted(by_key.values(), key=lambda x: x["score"], reverse=True)[:limit]
+    return {"context_id": context_id, "citing_source_id": c.get("citing_source_id"), "matched_source_id": target_source, "citation_function": c.get("citation_function"), "citation_text": c.get("citation_text"), "context_text": c.get("context_text"), "query_text": query, "locator": locator, "suggestions": ranked}
+
+
+def store_citation_location_suggestions(packet: dict[str, Any]) -> list[str]:
+    init_db(True)
+    conn=db(); ids=[]
+    for s in packet.get("suggestions", []):
+        sid=f"CLOC-{sha1_short(packet['context_id'] + str(s.get('target_type')) + str(s.get('target_id')) + str(s.get('char_start')) + str(s.get('char_end')))[:14]}"
+        conn.execute("""INSERT OR REPLACE INTO citation_location_suggestions
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            sid, packet["context_id"], packet.get("matched_source_id"), s.get("target_type"), s.get("target_id"), s.get("source_id"), s.get("char_start"), s.get("char_end"), s.get("page_start"), s.get("page_end"), float(s.get("score") or 0), json.dumps(s.get("score_json") or {}, ensure_ascii=False), packet.get("query_text") or "", s.get("matched_text") or "", s.get("suggested_relation") or "supports", s.get("status") or "candidate_location", now(), now()
+        ))
+        ids.append(sid)
+    conn.commit(); conn.close(); return ids
+
+
+def cmd_suggest_cited_claim_location(args):
+    packet=suggest_cited_claim_locations(args.context_id, limit=args.limit, include_claims=not args.no_claims, include_spans=not args.no_spans, min_score=args.min_score)
+    if args.store and packet.get("suggestions"):
+        ids=store_citation_location_suggestions(packet)
+        for sid,sug in zip(ids, packet["suggestions"]): sug["suggestion_id"]=sid
+    if args.json: print_json(packet)
+    else:
+        if packet.get("error"):
+            print(packet["error"]); return
+        print(f"# Citation location suggestions: {args.context_id}")
+        print(f"Citing: {packet.get('citing_source_id')} -> {packet.get('matched_source_id')} | function={packet.get('citation_function')} | locator={packet.get('locator',{}).get('locator_raw') or 'none'}")
+        print(f"Query: {packet.get('query_text')}")
+        for s in packet.get("suggestions", []):
+            sid=f" {s.get('suggestion_id')}" if s.get("suggestion_id") else ""
+            print(f"- {sid} {s['target_type']} {s.get('target_id')} score:{s['score']} relation:{s.get('suggested_relation')} p.{s.get('page_start') or '?'} handle:{s.get('handle')}")
+            why=s.get("score_json") or {}
+            print(f"  why: overlap={why.get('lexical_overlap')} page={why.get('page_score')} section={why.get('section_score')} {', '.join(why.get('why') or [])}")
+            print(f"  text: {short(s.get('matched_text'), 260)}")
+
+
+def cmd_suggest_cited_claim_locations(args):
+    init_db(True)
+    conn=db(); rows=conn.execute("SELECT context_id FROM citation_contexts " + ("WHERE citing_source_id=? " if args.source_id else "") + "ORDER BY context_id LIMIT ?", ((args.source_id, args.limit) if args.source_id else (args.limit,))).fetchall(); conn.close()
+    packets=[]; stored=0
+    for r in rows:
+        packet=suggest_cited_claim_locations(r["context_id"], limit=args.per_context, min_score=args.min_score)
+        if args.store and packet.get("suggestions"):
+            stored += len(store_citation_location_suggestions(packet))
+        packets.append(packet)
+    payload={"count": len(packets), "stored": stored, "packets": packets}
+    if args.json: print_json(payload)
+    else:
+        print(f"Processed {len(packets)} citation contexts; stored {stored} suggestions")
+        for p in packets:
+            top=(p.get("suggestions") or [{}])[0]
+            print(f"- {p.get('context_id')} -> {p.get('matched_source_id')} suggestions:{len(p.get('suggestions',[]))} top:{top.get('target_type')} {top.get('target_id')} score:{top.get('score')}")
+
+
+def cmd_citation_location_suggestions(args):
+    init_db(True)
+    conn=db(); params=[]; where=[]
+    if args.context_id: where.append("context_id=?"); params.append(args.context_id)
+    if args.status: where.append("status=?"); params.append(args.status)
+    sql="SELECT * FROM citation_location_suggestions" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY score DESC LIMIT ?"
+    rows=[dict(r) for r in conn.execute(sql, (*params,args.limit)).fetchall()]
+    conn.close()
+    for r in rows:
+        try: r["score_json"]=json.loads(r.get("score_json") or "{}")
+        except Exception: pass
+    if args.json: print_json(rows)
+    else:
+        for r in rows:
+            print(f"{r['suggestion_id']} | {r['context_id']} -> {r['target_type']}:{r['target_id']} score:{r['score']} {r['status']} p.{r.get('page_start') or '?'}")
+
+
+def cmd_verify_location(args):
+    init_db(True)
+    conn=db(); row=conn.execute("SELECT suggestion_id FROM citation_location_suggestions WHERE suggestion_id=?", (args.suggestion_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown suggestion_id: {args.suggestion_id}")
+    conn.execute("UPDATE citation_location_suggestions SET status=?, updated_at=? WHERE suggestion_id=?", (args.status, now(), args.suggestion_id))
+    if args.note:
+        # Keep the note on the citation context verification_note if requested by user.
+        ctx=conn.execute("SELECT context_id FROM citation_location_suggestions WHERE suggestion_id=?", (args.suggestion_id,)).fetchone()["context_id"]
+        conn.execute("UPDATE citation_contexts SET verification_note=?, updated_at=? WHERE context_id=?", (args.note, now(), ctx))
+    conn.commit(); conn.close(); print(f"{args.suggestion_id} -> {args.status}")
+
+
+def cmd_accept_citation_location(args):
+    init_db(True)
+    conn=db(); row=conn.execute("SELECT * FROM citation_location_suggestions WHERE suggestion_id=?", (args.suggestion_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown suggestion_id: {args.suggestion_id}")
+    s=dict(row)
+    conn.execute("UPDATE citation_location_suggestions SET status='accepted', updated_at=? WHERE suggestion_id=?", (now(), args.suggestion_id))
+    if args.citing_claim_id and s.get("target_type") == "claim" and s.get("target_id"):
+        for cid in [args.citing_claim_id, s["target_id"]]:
+            if not conn.execute("SELECT 1 FROM source_cards WHERE claim_id=?", (cid,)).fetchone():
+                raise SystemExit(f"Unknown claim_id: {cid}")
+        rid=args.relation_id or f"REL-{sha1_short(args.citing_claim_id + s['target_id'] + args.relation_type)[:10]}"
+        conn.execute("INSERT OR REPLACE INTO claim_relations VALUES (?,?,?,?,?,?,?)", (rid, args.citing_claim_id, s["target_id"], args.relation_type, args.note or f"Accepted from citation location {args.suggestion_id}", args.status or "candidate_needs_review", now()))
+    else:
+        rid=""
+    conn.commit(); conn.close()
+    print(f"accepted {args.suggestion_id}" + (f" -> relation {rid}" if rid else ""))
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
-    tables=["sources","spans","source_cards","claim_tags","claim_relations","source_references","citation_contexts","review_events","review_labels"]
+    tables=["sources","spans","source_cards","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
     stats={}
     for t in tables:
         try: stats[t]=cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -2952,6 +3218,16 @@ def main():
     aud.add_argument("path"); aud.add_argument("--min-words", type=int, default=14); aud.add_argument("--show-uncited", type=int, default=20); aud.add_argument("--min-sources", type=int, default=3); aud.add_argument("--json", action="store_true"); aud.set_defaults(func=cmd_audit_draft)
     grd=sub.add_parser("evidence-grades", help="List computed claim evidence grades")
     grd.add_argument("--grade", choices=sorted(EVIDENCE_GRADES)); grd.add_argument("--limit", type=int, default=80); grd.add_argument("--json", action="store_true"); grd.set_defaults(func=cmd_evidence_grades)
+    scl=sub.add_parser("suggest-cited-claim-location", help="Suggest where one citation context is supported in the matched/backtracked source")
+    scl.add_argument("context_id"); scl.add_argument("--limit", type=int, default=10); scl.add_argument("--min-score", type=float, default=0.05); scl.add_argument("--store", action="store_true"); scl.add_argument("--no-claims", action="store_true"); scl.add_argument("--no-spans", action="store_true"); scl.add_argument("--json", action="store_true"); scl.set_defaults(func=cmd_suggest_cited_claim_location)
+    scls=sub.add_parser("suggest-cited-claim-locations", help="Batch-generate citation location suggestions")
+    scls.add_argument("--source-id"); scls.add_argument("--limit", type=int, default=50); scls.add_argument("--per-context", type=int, default=5); scls.add_argument("--min-score", type=float, default=0.05); scls.add_argument("--store", action="store_true"); scls.add_argument("--json", action="store_true"); scls.set_defaults(func=cmd_suggest_cited_claim_locations)
+    cls=sub.add_parser("citation-location-suggestions", help="List stored citation location suggestions")
+    cls.add_argument("--context-id"); cls.add_argument("--status"); cls.add_argument("--limit", type=int, default=50); cls.add_argument("--json", action="store_true"); cls.set_defaults(func=cmd_citation_location_suggestions)
+    vl=sub.add_parser("verify-location", help="Mark a citation location suggestion as accepted/rejected/etc.")
+    vl.add_argument("suggestion_id"); vl.add_argument("status", choices=["candidate_location", "accepted", "rejected", "weak_match", "needs_review"]); vl.add_argument("--note"); vl.set_defaults(func=cmd_verify_location)
+    al=sub.add_parser("accept-citation-location", help="Accept a stored location suggestion and optionally create a claim relation")
+    al.add_argument("suggestion_id"); al.add_argument("--citing-claim-id"); al.add_argument("--relation-type", choices=sorted(RELATION_TYPES), default="supports"); al.add_argument("--relation-id"); al.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); al.add_argument("--note"); al.set_defaults(func=cmd_accept_citation_location)
     ec=sub.add_parser("extract-citations", help="Extract reference-list entries and in-text citation contexts for backtracking")
     ec.add_argument("source_id"); ec.add_argument("--clear", action="store_true"); ec.add_argument("--json", action="store_true"); ec.set_defaults(func=cmd_extract_citations)
     rr=sub.add_parser("reference-report", help="List parsed reference-list entries with stable canonical IDs")

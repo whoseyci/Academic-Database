@@ -138,3 +138,18 @@ A split spec is a JSON array of narrower claim specs. Minimal example:
   }
 ]
 ```
+
+## Sprint B citation-location suggestions
+
+Citation backtracking now has a deterministic first-pass locator. It does not verify correctness by itself; it ranks likely support locations in the matched/backtracked source.
+
+```bash
+python rh2.py suggest-cited-claim-location CITCTX-SOURCE-00001 --limit 10
+python rh2.py suggest-cited-claim-location CITCTX-SOURCE-00001 --store --json
+python rh2.py suggest-cited-claim-locations --source-id SOURCE_ID --store
+python rh2.py citation-location-suggestions --context-id CITCTX-SOURCE-00001
+python rh2.py verify-location CLOC-... accepted --note "Best support location."
+python rh2.py accept-citation-location CLOC-... --citing-claim-id CLAIM_ID --relation-type supports
+```
+
+The ranker uses citation context text, citation function, matched source, existing source cards, available source spans, page locators such as `p.`/`pp.` when present, section priors and transparent lexical scoring. Treat statuses as candidate triage labels until a reviewer checks support direction, scope and possible overstatement.
