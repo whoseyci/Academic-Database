@@ -1132,8 +1132,12 @@ def load_chapter_profile(path_or_id: str) -> dict[str, Any]:
     return prof
 
 
-def cmd_chapter_brief(args):
-    prof=load_chapter_profile(args.profile)
+def chapter_sections_with_cards(prof: dict[str, Any], default_limit: int = 10, fields: str = "standard") -> tuple[str, list[dict[str, Any]], set[str]]:
+    """Resolve a chapter profile into retrieved section cards.
+
+    Used by chapter briefs and chapter-aware citation backtracking so both tools
+    operate from the same chapter evidence contract.
+    """
     chapter_id=prof.get("chapter_id") or slug(prof.get("chapter_title","chapter"))
     global_filters=dict(prof.get("global_filters", {}))
     if prof.get("allowed_statuses") and not global_filters.get("statuses"):
@@ -1144,10 +1148,59 @@ def cmd_chapter_brief(args):
         filters=dict(global_filters)
         if sec.get("source_ids"): filters["source_ids"]=sec.get("source_ids")
         if sec.get("claim_types"): filters["claim_types"]=sec.get("claim_types")
+        if sec.get("card_roles"): filters["card_roles"]=sec.get("card_roles")
         if sec.get("statuses"): filters["statuses"]=sec.get("statuses")
-        cards=retrieve_claims(q, sec.get("limit", args.limit), "standard", filters)
+        cards=retrieve_claims(q, sec.get("limit", default_limit), fields, filters)
         for card in cards: used.add(card["claim_id"])
-        sections.append({"section_id": sec.get("section_id"), "heading": sec.get("heading"), "writing_goal": sec.get("writing_goal", ""), "query": q, "source_cards": cards, "claims": cards})
+        sections.append({
+            "section_id": sec.get("section_id"),
+            "heading": sec.get("heading"),
+            "section_type": sec.get("section_type") or sec.get("type"),
+            "citation_role": sec.get("citation_role"),
+            "writing_goal": sec.get("writing_goal", ""),
+            "query": q,
+            "source_cards": cards,
+            "claims": cards,  # compatibility alias
+        })
+    return chapter_id, sections, used
+
+
+def chapter_sections_with_cards(prof: dict[str, Any], default_limit: int = 10, fields: str = "standard") -> tuple[str, list[dict[str, Any]], set[str]]:
+    """Resolve a chapter profile into retrieved section cards.
+
+    Used by chapter briefs and chapter-aware citation backtracking so both tools
+    operate from the same chapter evidence contract.
+    """
+    chapter_id=prof.get("chapter_id") or slug(prof.get("chapter_title","chapter"))
+    global_filters=dict(prof.get("global_filters", {}))
+    if prof.get("allowed_statuses") and not global_filters.get("statuses"):
+        global_filters["statuses"] = prof.get("allowed_statuses")
+    sections=[]; used=set()
+    for sec in prof.get("sections", []):
+        q=" ".join(sec.get("queries", []) or [sec.get("query", "")])
+        filters=dict(global_filters)
+        if sec.get("source_ids"): filters["source_ids"]=sec.get("source_ids")
+        if sec.get("claim_types"): filters["claim_types"]=sec.get("claim_types")
+        if sec.get("card_roles"): filters["card_roles"]=sec.get("card_roles")
+        if sec.get("statuses"): filters["statuses"]=sec.get("statuses")
+        cards=retrieve_claims(q, sec.get("limit", default_limit), fields, filters)
+        for card in cards: used.add(card["claim_id"])
+        sections.append({
+            "section_id": sec.get("section_id"),
+            "heading": sec.get("heading"),
+            "section_type": sec.get("section_type") or sec.get("type"),
+            "citation_role": sec.get("citation_role"),
+            "writing_goal": sec.get("writing_goal", ""),
+            "query": q,
+            "source_cards": cards,
+            "claims": cards,  # compatibility alias
+        })
+    return chapter_id, sections, used
+
+
+def cmd_chapter_brief(args):
+    prof=load_chapter_profile(args.profile)
+    chapter_id, sections, used = chapter_sections_with_cards(prof, args.limit, "standard")
     conn=db()
     status_counts={r["verification_status"]: r["n"] for r in conn.execute(f"SELECT verification_status, COUNT(*) n FROM source_cards WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY verification_status", list(used)).fetchall()} if used else {}
     source_counts={r["source_id"]: r["n"] for r in conn.execute(f"SELECT source_id, COUNT(*) n FROM source_cards WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY source_id", list(used)).fetchall()} if used else {}
@@ -2125,6 +2178,162 @@ def cmd_citation_summary(args):
         print(render_citation_summary_md(summary))
 
 
+def citation_contexts_for_card(card: dict[str, Any], scope: str = "paragraph") -> list[dict[str, Any]]:
+    """Find citation contexts relevant to a source card.
+
+    Default scope is the source card's paragraph. This captures the usual case
+    where a sentence/card depends on an in-text citation elsewhere in the same
+    paragraph, without dumping the whole paper.
+    """
+    source_id=card.get("source_id")
+    if not source_id or card.get("char_start") is None:
+        return []
+    start=int(card.get("char_start") or 0); end=int(card.get("char_end") or start)
+    if scope == "overlap":
+        lo,hi=start,end
+    elif scope == "section":
+        text=read_source_text(source_id)
+        heading=heading_for_char(text,start)
+        hs=next((h for h in heading_spans(text) if h["heading"] == heading and h["char_start"] <= start < h["char_end"]), None)
+        lo,hi=(hs["char_start"],hs["char_end"]) if hs else paragraph_bounds_around(text,start,end)
+    else:
+        text=read_source_text(source_id)
+        lo,hi=paragraph_bounds_around(text,start,end)
+    conn=db()
+    rows=[dict(r) for r in conn.execute("""
+        SELECT * FROM citation_contexts
+        WHERE citing_source_id=?
+          AND char_start <= ?
+          AND char_end >= ?
+        ORDER BY char_start, context_id
+    """, (source_id, hi, lo)).fetchall()]
+    conn.close()
+    return rows
+
+
+def infer_chapter_citation_role(section: dict[str, Any], card: dict[str, Any], ctx: dict[str, Any]) -> str:
+    explicit=section.get("citation_role")
+    if explicit:
+        return explicit
+    text=norm(" ".join([section.get("section_id") or "", section.get("heading") or "", section.get("section_type") or "", section.get("writing_goal") or ""]))
+    role=card.get("card_role") or ""
+    func=ctx.get("citation_function") or ""
+    if "method" in text or role == "method_card" or func == "method_or_framework":
+        return "methods_source"
+    if any(k in text for k in ["theor", "framework", "concept", "definition"]) or role in ["theory_card", "definition_card"]:
+        return "theory_source"
+    if any(k in text for k in ["result", "finding", "empirical"]) or role == "result_claim":
+        return "empirical_support_source"
+    if any(k in text for k in ["policy", "design", "recommend", "discussion"]) or role == "policy_design_card":
+        return "policy_design_source"
+    if "gap" in text or role == "limitation_card":
+        return "limitation_or_gap_source"
+    if func == "contradiction_or_qualification" or role == "contradiction_card":
+        return "contradiction_or_qualification_source"
+    return "background_source"
+
+
+def build_chapter_citation_backtracking(profile: str, default_limit: int = 10, context_scope: str = "paragraph") -> dict[str, Any]:
+    prof=load_chapter_profile(profile)
+    chapter_id, sections, used = chapter_sections_with_cards(prof, default_limit, "full")
+    upstream={}
+    section_outputs=[]
+    for sec in sections:
+        sec_contexts=[]
+        sec_seen=set()
+        for card in sec.get("source_cards", []):
+            ctxs=citation_contexts_for_card(card, context_scope)
+            for ctx in ctxs:
+                canonical=ctx.get("canonical_source_id") or f"{ctx.get('cited_author_key')} {ctx.get('cited_year')}"
+                chap_role=infer_chapter_citation_role(sec, card, ctx)
+                dedup_key=(sec.get("section_id") or sec.get("heading"), ctx.get("context_id"), canonical, chap_role)
+                if dedup_key in sec_seen:
+                    continue
+                sec_seen.add(dedup_key)
+                rec={
+                    "chapter_section_id": sec.get("section_id"),
+                    "chapter_heading": sec.get("heading"),
+                    "chapter_section_type": sec.get("section_type"),
+                    "chapter_citation_role": chap_role,
+                    "source_card_id": card.get("claim_id"),
+                    "source_card_role": card.get("card_role"),
+                    "source_card_text": short(card.get("claim"), 220),
+                    "citing_source_id": ctx.get("citing_source_id"),
+                    "citation_context_id": ctx.get("context_id"),
+                    "citation_context_handle": citation_context_handle(ctx.get("context_id")),
+                    "reference_id": ctx.get("reference_id"),
+                    "reference_anchor": ctx.get("reference_anchor"),
+                    "canonical_source_id": canonical,
+                    "matched_source_id": ctx.get("matched_source_id"),
+                    "cited_author_key": ctx.get("cited_author_key"),
+                    "cited_year": ctx.get("cited_year"),
+                    "citation_function": ctx.get("citation_function"),
+                    "verification_status": ctx.get("verification_status"),
+                    "context_preview": short(ctx.get("context_text"), 320),
+                }
+                sec_contexts.append(rec)
+                agg=upstream.setdefault(canonical, {"canonical_source_id": canonical, "matched_source_id": ctx.get("matched_source_id"), "count":0, "chapter_roles": {}, "sections": {}, "source_cards": {}, "citation_functions": {}, "verification_statuses": {}, "contexts": []})
+                agg["count"] += 1
+                agg["chapter_roles"][chap_role]=agg["chapter_roles"].get(chap_role,0)+1
+                sid=sec.get("section_id") or sec.get("heading") or "unknown_section"
+                agg["sections"][sid]=agg["sections"].get(sid,0)+1
+                agg["source_cards"][card.get("claim_id")]=agg["source_cards"].get(card.get("claim_id"),0)+1
+                agg["citation_functions"][ctx.get("citation_function")]=agg["citation_functions"].get(ctx.get("citation_function"),0)+1
+                agg["verification_statuses"][ctx.get("verification_status")]=agg["verification_statuses"].get(ctx.get("verification_status"),0)+1
+                if len(agg["contexts"]) < 8:
+                    agg["contexts"].append(rec)
+        section_outputs.append({"section_id": sec.get("section_id"), "heading": sec.get("heading"), "section_type": sec.get("section_type"), "query": sec.get("query"), "source_card_count": len(sec.get("source_cards", [])), "citation_context_count": len(sec_contexts), "citation_contexts": sec_contexts})
+    top_upstream=sorted(upstream.values(), key=lambda x:x["count"], reverse=True)
+    warnings=[]
+    if not top_upstream:
+        warnings.append("No citation contexts found around chapter-selected source cards. Use --context-scope section or extract citations for the involved papers.")
+    missing=sum(1 for u in top_upstream if not u.get("matched_source_id"))
+    if missing:
+        warnings.append(f"{missing} upstream cited sources are not available locally; citation verification will require importing or resolving those sources.")
+    return {"chapter_id": chapter_id, "chapter_title": prof.get("chapter_title"), "profile": profile, "context_scope": context_scope, "selected_source_card_count": len(used), "upstream_source_count": len(top_upstream), "warnings": warnings, "upstream_sources": top_upstream, "sections": section_outputs}
+
+
+def render_chapter_citations_md(packet: dict[str, Any]) -> str:
+    lines=[f"# Chapter Citation Backtracking: {packet.get('chapter_title') or packet.get('chapter_id')}", "", f"Context scope: `{packet.get('context_scope')}`", f"Selected source cards: {packet.get('selected_source_card_count')}", f"Upstream cited sources: {packet.get('upstream_source_count')}", ""]
+    if packet.get("warnings"):
+        lines += ["## Warnings", ""] + [f"- {w}" for w in packet["warnings"]] + [""]
+    lines += ["## Upstream sources by chapter role", ""]
+    for u in packet.get("upstream_sources", []):
+        role_str=", ".join(f"{k}:{v}" for k,v in sorted(u.get("chapter_roles",{}).items(), key=lambda x:-x[1]))
+        sec_str=", ".join(f"{k}:{v}" for k,v in sorted(u.get("sections",{}).items(), key=lambda x:-x[1]))
+        status_str=", ".join(f"{k}:{v}" for k,v in sorted(u.get("verification_statuses",{}).items(), key=lambda x:-x[1]))
+        lines.append(f"### {u['canonical_source_id']} ({u.get('matched_source_id') or 'MISSING'})")
+        lines.append(f"- Count: {u['count']}")
+        lines.append(f"- Chapter roles: {role_str}")
+        lines.append(f"- Sections: {sec_str}")
+        lines.append(f"- Verification: {status_str}")
+        if u.get("contexts"):
+            lines.append("- Example contexts:")
+            for c in u["contexts"][:3]:
+                lines.append(f"  - `{c['citation_context_handle']}` via `{c['source_card_id']}` in {c.get('chapter_section_id')}: {c['context_preview']}")
+        lines.append("")
+    lines += ["## Section-level citation contexts", ""]
+    for sec in packet.get("sections", []):
+        lines.append(f"### {sec.get('heading') or sec.get('section_id')}")
+        lines.append(f"- Source cards: {sec.get('source_card_count')} | Citation contexts: {sec.get('citation_context_count')}")
+        for c in sec.get("citation_contexts", [])[:10]:
+            lines.append(f"  - `{c['citation_context_handle']}` {c['canonical_source_id']} → role `{c['chapter_citation_role']}` via `{c['source_card_id']}`")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def cmd_chapter_citations(args):
+    packet=build_chapter_citation_backtracking(args.profile, args.limit, args.context_scope)
+    if args.out:
+        out=Path(args.out)
+        out.write_text(json.dumps(packet, ensure_ascii=False, indent=2) if out.suffix.lower()==".json" else render_chapter_citations_md(packet), encoding="utf-8")
+        print(out); return
+    if args.json:
+        print_json(packet)
+    else:
+        print(render_chapter_citations_md(packet))
+
+
 def cmd_citation_report(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
@@ -2441,6 +2650,8 @@ def main():
     ec.add_argument("source_id"); ec.add_argument("--clear", action="store_true"); ec.add_argument("--json", action="store_true"); ec.set_defaults(func=cmd_extract_citations)
     rr=sub.add_parser("reference-report", help="List parsed reference-list entries with stable canonical IDs")
     rr.add_argument("--source-id"); rr.add_argument("--status"); rr.add_argument("--limit", type=int, default=50); rr.add_argument("--json", action="store_true"); rr.set_defaults(func=cmd_reference_report)
+    chcit=sub.add_parser("chapter-citations", help="Chapter-aware citation backtracking: classify upstream sources by chapter section/card role")
+    chcit.add_argument("profile"); chcit.add_argument("--limit", type=int, default=10); chcit.add_argument("--context-scope", choices=["overlap","paragraph","section"], default="paragraph"); chcit.add_argument("--json", action="store_true"); chcit.add_argument("--out"); chcit.set_defaults(func=cmd_chapter_citations)
     csum=sub.add_parser("citation-summary", help="Compressed citation/backtracking summary with handles")
     csum.add_argument("--source-id"); csum.add_argument("--limit", type=int, default=20); csum.add_argument("--json", action="store_true"); csum.set_defaults(func=cmd_citation_summary)
     cr=sub.add_parser("citation-report", help="Summarize extracted citation contexts")

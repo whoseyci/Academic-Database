@@ -26,8 +26,11 @@ Chapter profiles live in `config/chapter_profiles/*.json` and define the evidenc
       "section_id": "behavioural_drivers",
       "heading": "Behavioural and institutional drivers",
       "writing_goal": "Explain how trust, attitudes and social norms shape participation.",
+      "section_type": "discussion",
+      "citation_role": "empirical_support_source",
       "queries": ["trust policy stability social norms participation farmers"],
       "claim_types": ["empirical finding", "theoretical claim"],
+      "card_roles": ["result_claim", "theory_card"],
       "statuses": ["verified", "candidate_needs_review"],
       "limit": 8
     }
@@ -40,5 +43,7 @@ Chapter profiles live in `config/chapter_profiles/*.json` and define the evidenc
 - `allowed_statuses` is used as a default retrieval filter if `global_filters.statuses` is absent.
 - `required_topics` are checked after retrieval. Missing topics become chapter-brief warnings.
 - `avoid` is exported into the evidence packet so agents know what not to overclaim.
-- Section-level `statuses`, `source_ids` and `claim_types` override or extend global filters for that section.
+- Section-level `statuses`, `source_ids`, `claim_types`, and `card_roles` override or extend global filters for that section.
+- `section_type` helps downstream tools infer whether retrieved evidence is being used for theory, methods, results, discussion, policy, etc.
+- `citation_role` can explicitly label upstream cited sources in chapter-aware citation backtracking, e.g. `methods_source`, `theory_source`, `empirical_support_source`, or `policy_design_source`.
 - Use conservative source-diversity targets. A narrow single-source profile can set `minimum_source_diversity` to `1`.

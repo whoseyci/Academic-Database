@@ -166,6 +166,15 @@ python rh2.py citation-report --source-id Canessa_2024 --limit 20
 python rh2.py citation-context CITCTX-Canessa_2024-00001 --limit 5
 ```
 
+Build chapter-aware citation backtracking:
+
+```bash
+python rh2.py chapter-citations eco_schemes_discussion_rq2_rq3 \
+  --context-scope paragraph
+```
+
+This classifies upstream cited sources by how they support a chapter section, e.g. `methods_source`, `theory_source`, `empirical_support_source`, or `policy_design_source`.
+
 Reference identities are now stable: DOI-backed references use DOI-derived canonical IDs, while non-DOI references use deterministic `author + first title word + year` IDs.
 
 Audit a draft for claim traceability:
