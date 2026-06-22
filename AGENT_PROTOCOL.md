@@ -97,3 +97,44 @@ python rh2.py verify-citation CITCTX-SOURCE-00001 verified_accurate --note "Chec
 ```
 
 Agent rule: source-range candidates are excellent review material, but they are not automatically publication-safe. They still need status review and, ideally, draft audit before final use.
+
+## Sprint A review loop
+
+The review workflow is now queue-driven:
+
+```bash
+python rh2.py review-queue --status candidate_needs_review --grade C --limit 20
+python rh2.py review-packet CLAIM_ID
+python rh2.py review CLAIM_ID verified --label good_claim --note "Checked source/page/scope."
+```
+
+Structured review labels should be used whenever possible. Useful labels include:
+
+```text
+good_claim, excellent, too_broad, too_narrow, not_substantive,
+bad_evidence, needs_split, duplicate, scope_overreach,
+method_only, background_only, page_verified, source_verified,
+superseded, revised
+```
+
+If a claim is too broad or inferior to a tighter source-range candidate, do not merely reject it. Prefer preserving the audit trail:
+
+```bash
+python rh2.py revise-claim CLAIM_ID --scope-note "Narrowed scope..." --label revised
+python rh2.py supersede OLD_CLAIM NEW_CLAIM --note "New source-range claim is tighter."
+python rh2.py duplicate DUPLICATE_CLAIM CANONICAL_CLAIM --reject-duplicate
+python rh2.py split-claim BROAD_CLAIM --file split_specs.json --inherit-tags --supersede-original
+```
+
+A split spec is a JSON array of narrower claim specs. Minimal example:
+
+```json
+[
+  {
+    "claim": "...",
+    "evidence": "...",
+    "claim_type": "empirical finding",
+    "scope_note": "Split from a broader claim."
+  }
+]
+```

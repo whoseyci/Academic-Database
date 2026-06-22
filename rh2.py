@@ -29,7 +29,8 @@ CLAIM_TYPES = {
 }
 STATUSES = {"verified", "rejected", "candidate_needs_review", "needs_page_check", "needs_source_check", "superseded"}
 EVIDENCE_GRADES = {"A", "B", "C", "D", "X"}
-RELATION_TYPES = {"supports", "contradicts", "qualifies", "same_concept", "methodologically_incompatible", "stronger_than", "weaker_than", "supersedes"}
+RELATION_TYPES = {"supports", "contradicts", "qualifies", "same_concept", "duplicate_of", "methodologically_incompatible", "stronger_than", "weaker_than", "supersedes"}
+REVIEW_LABELS = {"good_claim", "excellent", "too_broad", "too_narrow", "not_substantive", "bad_evidence", "needs_split", "duplicate", "scope_overreach", "method_only", "background_only", "page_verified", "source_verified", "superseded", "revised"}
 CARD_ROLES = {"result_claim", "interpretive_claim", "policy_design_card", "method_card", "definition_card", "theory_card", "background_card", "limitation_card", "contradiction_card", "unknown_card"}
 
 PAGE_MARKER_RE = re.compile(
@@ -262,6 +263,17 @@ def init_db(quiet: bool=False) -> None:
         created_at TEXT,
         FOREIGN KEY(claim_id) REFERENCES source_cards(claim_id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS review_labels (
+        event_id TEXT,
+        claim_id TEXT,
+        label TEXT,
+        created_at TEXT,
+        PRIMARY KEY(event_id, label),
+        FOREIGN KEY(event_id) REFERENCES review_events(event_id) ON DELETE CASCADE,
+        FOREIGN KEY(claim_id) REFERENCES source_cards(claim_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_review_labels_claim ON review_labels(claim_id);
+    CREATE INDEX IF NOT EXISTS idx_review_labels_label ON review_labels(label);
     CREATE TABLE IF NOT EXISTS query_cache (
         query_hash TEXT PRIMARY KEY,
         query TEXT,
@@ -2586,9 +2598,291 @@ def cmd_evidence_grades(args):
         for x in items[:args.limit]: print(f"{x['claim_id']} grade:{x['grade']} {x['status']} {x['claim']}")
 
 
-def cmd_stats(args):
+def brief_usage_counts() -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for path in EXPORTS.glob("chapter_brief_*.json"):
+        try:
+            packet=json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for sec in packet.get("sections", []):
+            for c in sec.get("claims", []):
+                cid=c.get("claim_id")
+                if cid:
+                    counts[cid]=counts.get(cid,0)+1
+    return counts
+
+
+def review_labels_for(claim_id: str) -> list[str]:
+    init_db(True)
+    conn=db()
+    rows=conn.execute("SELECT DISTINCT label FROM review_labels WHERE claim_id=? ORDER BY label", (claim_id,)).fetchall()
+    conn.close()
+    return [r["label"] for r in rows]
+
+
+def review_history_for(claim_id: str) -> list[dict[str, Any]]:
+    init_db(True)
+    conn=db()
+    rows=conn.execute("SELECT * FROM review_events WHERE claim_id=? ORDER BY created_at DESC", (claim_id,)).fetchall()
+    labels=conn.execute("SELECT event_id, label FROM review_labels WHERE claim_id=? ORDER BY label", (claim_id,)).fetchall()
+    conn.close()
+    by_event: dict[str, list[str]] = {}
+    for r in labels:
+        by_event.setdefault(r["event_id"], []).append(r["label"])
+    out=[]
+    for r in rows:
+        d=dict(r); d["labels"]=by_event.get(d["event_id"], [])
+        out.append(d)
+    return out
+
+
+def insert_review_event(conn: sqlite3.Connection, claim_id: str, from_status: str, to_status: str, note: str="", actor: str="human", labels: list[str]|None=None) -> str:
+    event_id=str(uuid.uuid4())
+    conn.execute("INSERT INTO review_events VALUES (?,?,?,?,?,?,?)", (event_id, claim_id, from_status, to_status, note or "", actor or "human", now()))
+    for label in labels or []:
+        if label:
+            conn.execute("INSERT OR IGNORE INTO review_labels VALUES (?,?,?,?)", (event_id, claim_id, label, now()))
+    return event_id
+
+
+def update_claim_fts(cur: sqlite3.Cursor, claim_id: str) -> None:
+    row=cur.execute("SELECT claim, evidence FROM source_cards WHERE claim_id=?", (claim_id,)).fetchone()
+    if not row:
+        return
+    tags=" ".join(f"{r['tag_type']}:{r['tag']}" for r in cur.execute("SELECT tag_type, tag FROM claim_tags WHERE claim_id=?", (claim_id,)).fetchall())
+    cur.execute("DELETE FROM claims_fts WHERE claim_id=?", (claim_id,))
+    cur.execute("INSERT INTO claims_fts(claim_id, claim, evidence, tags) VALUES (?,?,?,?)", (claim_id, row["claim"], row["evidence"], tags))
+
+
+def claim_queue_score(card: dict[str, Any], usage: int, relation_count: int) -> float:
+    status_weight={"needs_source_check": 50, "needs_page_check": 40, "candidate_needs_review": 30, "verified": 5, "superseded": -50, "rejected": -100}.get(card.get("status"), 10)
+    grade_weight={"D": 25, "C": 18, "B": 8, "A": 0, "X": -50}.get(card.get("evidence_grade"), 10)
+    return status_weight + grade_weight + usage*6 + relation_count*3
+
+
+def cmd_review_queue(args):
+    init_db(True)
+    conn=db()
+    rows=conn.execute("SELECT * FROM source_cards WHERE verification_status!='rejected' ORDER BY source_id, claim_id").fetchall()
+    usage=brief_usage_counts()
+    items=[]
+    for r in rows:
+        card=claim_card(r, "standard")
+        grade=card.get("evidence_grade")
+        if args.source_id and card.get("source_id") != args.source_id: continue
+        if args.status and card.get("status") not in split_list(args.status): continue
+        if args.grade and grade != args.grade: continue
+        if args.claim_type and card.get("claim_type") not in split_list(args.claim_type): continue
+        labels=review_labels_for(card["claim_id"])
+        if args.label and args.label not in labels: continue
+        rel_count=conn.execute("SELECT COUNT(*) FROM claim_relations WHERE claim_a=? OR claim_b=?", (card["claim_id"], card["claim_id"])).fetchone()[0]
+        used=usage.get(card["claim_id"],0)
+        if args.centrality == "high" and not (used or rel_count): continue
+        score=claim_queue_score(card, used, rel_count)
+        items.append({**card, "queue_score": round(score,2), "used_in_briefs": used, "relation_count": rel_count, "review_labels": labels, "review_packet": f"python rh2.py review-packet {card['claim_id']}"})
+    conn.close()
+    items=sorted(items, key=lambda x: x["queue_score"], reverse=True)[:args.limit]
+    if args.json:
+        print_json({"count": len(items), "items": items})
+    else:
+        print(f"Review queue: {len(items)} item(s)")
+        for c in items:
+            print(f"- {c['claim_id']} score:{c['queue_score']} grade:{c['evidence_grade']} {c['status']} used:{c['used_in_briefs']} rel:{c['relation_count']} {c['claim_type']}")
+            print(f"  {short(c['claim'], 220)}")
+            print(f"  packet: python rh2.py review-packet {c['claim_id']}")
+
+
+def cmd_review_packet(args):
+    init_db(True)
+    conn=db(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (args.claim_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown claim_id: {args.claim_id}")
+    d=dict(row); card=claim_card(d, "full")
+    source=dict(conn.execute("SELECT * FROM sources WHERE source_id=?", (d["source_id"],)).fetchone() or {})
+    usage=brief_usage_counts().get(args.claim_id,0)
+    nearby=[]
+    if d.get("char_start") is not None:
+        rows=conn.execute("""
+            SELECT * FROM source_cards WHERE source_id=? AND claim_id!=? AND char_start IS NOT NULL
+            ORDER BY ABS(char_start - ?) LIMIT ?
+        """, (d["source_id"], args.claim_id, int(d.get("char_start") or 0), args.nearby)).fetchall()
+        nearby=[claim_card(r, "minimal") for r in rows]
+    citation_contexts=[]
+    try:
+        citation_contexts=[dict(r) for r in conn.execute("""
+            SELECT context_id, citing_source_id, matched_source_id, author_key, year, context_text, citation_function, verification_status
+            FROM citation_contexts
+            WHERE matched_source_id=? OR citing_source_id=?
+            ORDER BY created_at DESC LIMIT ?
+        """, (d["source_id"], d["source_id"], args.citation_limit)).fetchall()]
+    except sqlite3.OperationalError:
+        citation_contexts=[]
+    conn.close()
+    context_payload=None; context_error=""
+    try:
+        text=read_source_text(d["source_id"])
+        if args.context_mode == "char":
+            start=max(0, int(d.get("char_start") or 0)-args.window); end=min(len(text), int(d.get("char_end") or d.get("char_start") or 0)+args.window)
+            context_payload={"mode":"char", "context_start": start, "context_end": end, "context": text[start:end]}
+        else:
+            context_payload=sentence_aware_context(d["source_id"], int(d.get("char_start") or 0), int(d.get("char_end") or d.get("char_start") or 0), radius=args.sentence_radius, outside_paragraph=args.outside_paragraph)
+    except SystemExit as e:
+        context_error=str(e)
+    payload={
+        "claim": card,
+        "source": source,
+        "usage": {"chapter_brief_count": usage},
+        "review_history": review_history_for(args.claim_id),
+        "relations": claim_relations_for(args.claim_id),
+        "nearby_claims": nearby,
+        "citation_contexts": citation_contexts,
+        "context": context_payload,
+        "context_error": context_error,
+        "suggested_actions": [
+            f"python rh2.py review {args.claim_id} verified --label good_claim --note 'Checked source/page/scope.'",
+            f"python rh2.py revise-claim {args.claim_id} --scope-note '...'",
+            f"python rh2.py supersede {args.claim_id} NEW_CLAIM_ID --note 'Tighter source-range claim.'",
+        ]
+    }
+    if args.json: print_json(payload)
+    else:
+        print(f"# Review packet: {args.claim_id}")
+        print(f"Status/grade/type: {card.get('status')} / {card.get('evidence_grade')} / {card.get('claim_type')}")
+        print(f"Source: {card.get('citation_hint')} p.{card.get('page') or '?'}")
+        print(f"Claim: {card.get('claim')}")
+        if card.get("evidence"): print(f"Evidence: {card.get('evidence')}")
+        if card.get("scope_note"): print(f"Scope: {card.get('scope_note')}")
+        if context_error: print(f"\nContext unavailable: {context_error}")
+        elif context_payload: print(f"\n--- context ({context_payload.get('mode')}) ---\n{context_payload.get('context')}")
+        if payload["relations"]:
+            print("\nRelations:"); [print(f"- {r['claim_a']} --{r['relation_type']}--> {r['claim_b']} ({r['status']}) {r.get('note','')}") for r in payload["relations"]]
+        if nearby:
+            print("\nNearby claims:"); [print(f"- {c['claim_id']} {short(c['claim'], 140)}") for c in nearby]
+        if citation_contexts:
+            print("\nCitation contexts:"); [print(f"- {c['context_id']} {short(c.get('context_text',''), 180)}") for c in citation_contexts[:args.citation_limit]]
+        print("\nSuggested actions:"); [print(f"- {x}") for x in payload["suggested_actions"]]
+
+
+def cmd_revise_claim(args):
+    init_db(True)
+    conn=db(); cur=conn.cursor(); row=cur.execute("SELECT * FROM source_cards WHERE claim_id=?", (args.claim_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown claim_id: {args.claim_id}")
+    old_status=row["verification_status"]
+    fields=[]; vals=[]
+    for attr,col in [("claim","claim"),("evidence","evidence"),("scope_note","scope_note"),("claim_type","claim_type"),("confidence","confidence"),("status","verification_status")]:
+        val=getattr(args, attr)
+        if val is not None:
+            fields.append(f"{col}=?"); vals.append(val)
+    if args.char_start is not None and args.char_end is not None:
+        page,_=page_for_char(row["source_id"], args.char_start)
+        fields += ["char_start=?", "char_end=?", "line_start=?", "line_end=?", "page=?", "page_status=?"]
+        text=""
+        try:
+            text=read_source_text(row["source_id"])
+            offs=line_offsets(text); ls=line_no(offs,args.char_start); le=line_no(offs,args.char_end)
+        except SystemExit:
+            ls=le=None
+        vals += [args.char_start, args.char_end, ls, le, page or row["page"], "page_matched_from_source_span" if page else row["page_status"]]
+        if args.evidence is None:
+            fields.append("evidence=?"); vals.append(source_slice(row["source_id"], args.char_start, args.char_end) or row["evidence"])
+    if not fields and not args.label and not args.note:
+        raise SystemExit("Nothing to revise. Provide fields, --label or --note.")
+    if fields:
+        fields.append("updated_at=?"); vals.append(now()); vals.append(args.claim_id)
+        cur.execute(f"UPDATE source_cards SET {', '.join(fields)} WHERE claim_id=?", vals)
+        update_claim_fts(cur, args.claim_id)
+    new_status=args.status or old_status
+    insert_review_event(conn, args.claim_id, old_status, new_status, args.note or "Claim revised.", args.actor or "human", args.label or ["revised"])
+    conn.commit(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (args.claim_id,)).fetchone(); conn.close()
+    print_json({"updated": True, "claim": claim_card(row, "full")}) if args.json else print(f"Updated {args.claim_id}")
+
+
+def cmd_supersede(args):
+    init_db(True)
     conn=db(); cur=conn.cursor()
-    tables=["sources","spans","source_cards","claim_tags","claim_relations","source_references","citation_contexts","review_events"]
+    old=cur.execute("SELECT verification_status FROM source_cards WHERE claim_id=?", (args.old_claim,)).fetchone()
+    new=cur.execute("SELECT verification_status FROM source_cards WHERE claim_id=?", (args.new_claim,)).fetchone()
+    if not old: raise SystemExit(f"Unknown old claim_id: {args.old_claim}")
+    if not new: raise SystemExit(f"Unknown new claim_id: {args.new_claim}")
+    cur.execute("UPDATE source_cards SET verification_status='superseded', updated_at=? WHERE claim_id=?", (now(), args.old_claim))
+    insert_review_event(conn, args.old_claim, old["verification_status"], "superseded", args.note or f"Superseded by {args.new_claim}", args.actor or "human", ["superseded"])
+    rid=args.relation_id or f"REL-{sha1_short(args.new_claim + args.old_claim + 'supersedes')[:10]}"
+    cur.execute("INSERT OR REPLACE INTO claim_relations VALUES (?,?,?,?,?,?,?)", (rid, args.new_claim, args.old_claim, "supersedes", args.note or "", "verified" if args.verify_relation else "candidate_needs_review", now()))
+    update_claim_fts(cur, args.old_claim)
+    conn.commit(); conn.close()
+    print(f"{args.old_claim}: superseded by {args.new_claim} ({rid})")
+
+
+def cmd_duplicate(args):
+    init_db(True)
+    conn=db(); cur=conn.cursor()
+    for cid in [args.duplicate_claim, args.canonical_claim]:
+        if not cur.execute("SELECT verification_status FROM source_cards WHERE claim_id=?", (cid,)).fetchone():
+            raise SystemExit(f"Unknown claim_id: {cid}")
+    rid=args.relation_id or f"REL-{sha1_short(args.duplicate_claim + args.canonical_claim + 'duplicate')[:10]}"
+    cur.execute("INSERT OR REPLACE INTO claim_relations VALUES (?,?,?,?,?,?,?)", (rid, args.duplicate_claim, args.canonical_claim, "duplicate_of", args.note or "", args.status or "candidate_needs_review", now()))
+    if args.reject_duplicate:
+        old=cur.execute("SELECT verification_status FROM source_cards WHERE claim_id=?", (args.duplicate_claim,)).fetchone()["verification_status"]
+        cur.execute("UPDATE source_cards SET verification_status='rejected', updated_at=? WHERE claim_id=?", (now(), args.duplicate_claim))
+        insert_review_event(conn, args.duplicate_claim, old, "rejected", args.note or f"Duplicate of {args.canonical_claim}", args.actor or "human", ["duplicate"])
+        update_claim_fts(cur, args.duplicate_claim)
+    conn.commit(); conn.close()
+    print(f"{rid}: {args.duplicate_claim} duplicate_of {args.canonical_claim}")
+
+
+def cmd_split_claim(args):
+    init_db(True)
+    conn=db(); base=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (args.claim_id,)).fetchone(); conn.close()
+    if not base: raise SystemExit(f"Unknown claim_id: {args.claim_id}")
+    specs=json.loads(Path(args.file).read_text(encoding="utf-8"))
+    if not isinstance(specs, list): raise SystemExit("Split file must be a JSON array of claim specs.")
+    created=[]
+    inherited_tags={}
+    if args.inherit_tags:
+        for t in tags_for_claim(args.claim_id):
+            typ,_,tag=t.partition(":")
+            inherited_tags.setdefault(typ, []).append(tag)
+    for spec in specs:
+        sid=base["source_id"]
+        char_start=spec.get("char_start"); char_end=spec.get("char_end")
+        evidence=spec.get("evidence") or ""
+        loc={}
+        if char_start is not None and char_end is not None:
+            evidence=evidence or source_slice(sid, int(char_start), int(char_end))
+            try:
+                offs=line_offsets(read_source_text(sid)); loc={"char_start": int(char_start), "char_end": int(char_end), "line_start": line_no(offs,int(char_start)), "line_end": line_no(offs,int(char_end))}
+            except SystemExit:
+                loc={"char_start": int(char_start), "char_end": int(char_end), "line_start": None, "line_end": None}
+        elif evidence:
+            try:
+                text=read_source_text(sid); loc=locate_span(text, evidence)
+            except SystemExit:
+                loc={}
+        page=spec.get("page") or page_for_char(sid, loc.get("char_start"))[0]
+        claim={"claim_id": spec.get("claim_id") or next_claim_id(sid), "source_id": sid, "claim": spec.get("claim") or evidence,
+            "evidence": evidence, "claim_representation": spec.get("claim_representation") or ("source_range" if char_start is not None else "paraphrase"),
+            "claim_type": spec.get("claim_type") or base["claim_type"], "page": page,
+            "page_status": "page_matched_from_source_span" if page else "needs_page_check", "verification_status": spec.get("status") or args.status,
+            "confidence": spec.get("confidence") or base["confidence"], "scope_note": spec.get("scope_note") or f"Split from {args.claim_id}.",
+            "char_start": loc.get("char_start"), "char_end": loc.get("char_end"), "line_start": loc.get("line_start"), "line_end": loc.get("line_end"),
+            "extraction_mode": "split_claim"}
+        tags={**inherited_tags, **(spec.get("tags") or {})}
+        upsert_claim(claim, tags)
+        created.append(claim["claim_id"])
+        cconn=db(); rid=f"REL-{sha1_short(claim['claim_id'] + args.claim_id + 'qualifies')[:10]}"
+        cconn.execute("INSERT OR REPLACE INTO claim_relations VALUES (?,?,?,?,?,?,?)", (rid, claim["claim_id"], args.claim_id, "qualifies", args.note or "Split from broader claim.", "candidate_needs_review", now()))
+        cconn.commit(); cconn.close()
+    if args.supersede_original and created:
+        class Obj: pass
+        o=Obj(); o.old_claim=args.claim_id; o.new_claim=created[0]; o.note=args.note or "Split into narrower claims."; o.actor=args.actor; o.relation_id=None; o.verify_relation=False
+        cmd_supersede(o)
+    print_json({"split_from": args.claim_id, "created": created}) if args.json else print(f"Created {len(created)} split claims: {', '.join(created)}")
+
+
+def cmd_stats(args):
+    init_db(True)
+    conn=db(); cur=conn.cursor()
+    tables=["sources","spans","source_cards","claim_tags","claim_relations","source_references","citation_contexts","review_events","review_labels"]
     stats={}
     for t in tables:
         try: stats[t]=cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -2600,13 +2894,13 @@ def cmd_stats(args):
 
 
 def cmd_review(args):
+    init_db(True)
     conn=db(); row=conn.execute("SELECT verification_status FROM source_cards WHERE claim_id=?", (args.claim_id,)).fetchone()
     if not row: raise SystemExit(f"Unknown claim_id: {args.claim_id}")
     old=row["verification_status"]
     conn.execute("UPDATE source_cards SET verification_status=?, updated_at=? WHERE claim_id=?", (args.status, now(), args.claim_id))
-    conn.execute("INSERT INTO review_events VALUES (?,?,?,?,?,?,?)", (str(uuid.uuid4()), args.claim_id, old, args.status, args.note or "", args.actor or "human", now()))
-    conn.commit(); conn.close(); print(f"{args.claim_id}: {old} -> {args.status}")
-
+    insert_review_event(conn, args.claim_id, old, args.status, args.note or "", args.actor or "human", args.label or [])
+    conn.commit(); conn.close(); print(f"{args.claim_id}: {old} -> {args.status}" + (f" labels={args.label}" if args.label else ""))
 
 def main():
     ensure_dirs()
@@ -2637,7 +2931,19 @@ def main():
     chap=sub.add_parser("chapter-brief"); chap.add_argument("profile"); chap.add_argument("--limit", type=int, default=10); chap.add_argument("--json", action="store_true"); chap.set_defaults(func=cmd_chapter_brief)
     wb=sub.add_parser("writing-brief", help="Build a compact, budgeted evidence packet for an LLM/human writing a paragraph/section")
     wb.add_argument("query"); wb.add_argument("--section-type", choices=sorted(SECTION_TYPE_CLAIM_TYPES.keys())); wb.add_argument("--limit", type=int, default=10); wb.add_argument("--token-budget", type=int, default=1800); wb.add_argument("--source-id"); wb.add_argument("--verified-only", action="store_true"); wb.add_argument("--status"); wb.add_argument("--claim-type"); wb.add_argument("--card-role", help="Filter by writing role, e.g. result_claim or policy_design_card"); wb.add_argument("--max-per-source", type=int, default=0); wb.add_argument("--json", action="store_true"); wb.add_argument("--out"); wb.set_defaults(func=cmd_writing_brief)
-    rev=sub.add_parser("review"); rev.add_argument("claim_id"); rev.add_argument("status", choices=sorted(STATUSES)); rev.add_argument("--note"); rev.add_argument("--actor"); rev.set_defaults(func=cmd_review)
+    rev=sub.add_parser("review"); rev.add_argument("claim_id"); rev.add_argument("status", choices=sorted(STATUSES)); rev.add_argument("--note"); rev.add_argument("--actor"); rev.add_argument("--label", action="append", choices=sorted(REVIEW_LABELS), help="Structured review label; repeatable"); rev.set_defaults(func=cmd_review)
+    rq=sub.add_parser("review-queue", help="Prioritized queue of claims needing review")
+    rq.add_argument("--source-id"); rq.add_argument("--status", help="Comma/semicolon separated statuses"); rq.add_argument("--grade", choices=sorted(EVIDENCE_GRADES)); rq.add_argument("--claim-type"); rq.add_argument("--label", choices=sorted(REVIEW_LABELS)); rq.add_argument("--centrality", choices=["any","high"], default="any"); rq.add_argument("--limit", type=int, default=30); rq.add_argument("--json", action="store_true"); rq.set_defaults(func=cmd_review_queue)
+    rp=sub.add_parser("review-packet", help="Assemble claim, evidence, context, history, relations and nearby material for review")
+    rp.add_argument("claim_id"); rp.add_argument("--context-mode", choices=["sentence","char"], default="sentence"); rp.add_argument("--sentence-radius", type=int, default=1); rp.add_argument("--outside-paragraph", action="store_true"); rp.add_argument("--window", type=int, default=600); rp.add_argument("--nearby", type=int, default=5); rp.add_argument("--citation-limit", type=int, default=5); rp.add_argument("--json", action="store_true"); rp.set_defaults(func=cmd_review_packet)
+    rvc=sub.add_parser("revise-claim", help="Revise claim text/evidence/scope/status while recording a structured review event")
+    rvc.add_argument("claim_id"); rvc.add_argument("--claim"); rvc.add_argument("--evidence"); rvc.add_argument("--scope-note"); rvc.add_argument("--claim-type", choices=sorted(CLAIM_TYPES)); rvc.add_argument("--confidence", choices=["low","medium","high"]); rvc.add_argument("--status", choices=sorted(STATUSES)); rvc.add_argument("--char-start", type=int); rvc.add_argument("--char-end", type=int); rvc.add_argument("--label", action="append", choices=sorted(REVIEW_LABELS)); rvc.add_argument("--note"); rvc.add_argument("--actor", default="human"); rvc.add_argument("--json", action="store_true"); rvc.set_defaults(func=cmd_revise_claim)
+    sup=sub.add_parser("supersede", help="Mark one claim as superseded by a better claim and create a relation")
+    sup.add_argument("old_claim"); sup.add_argument("new_claim"); sup.add_argument("--note"); sup.add_argument("--actor", default="human"); sup.add_argument("--relation-id"); sup.add_argument("--verify-relation", action="store_true"); sup.set_defaults(func=cmd_supersede)
+    dup=sub.add_parser("duplicate", help="Mark or record one claim as duplicate of another")
+    dup.add_argument("duplicate_claim"); dup.add_argument("canonical_claim"); dup.add_argument("--note"); dup.add_argument("--actor", default="human"); dup.add_argument("--relation-id"); dup.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); dup.add_argument("--reject-duplicate", action="store_true"); dup.set_defaults(func=cmd_duplicate)
+    spl=sub.add_parser("split-claim", help="Create narrower claims from a JSON split spec")
+    spl.add_argument("claim_id"); spl.add_argument("--file", required=True, help="JSON array of split claim specs"); spl.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); spl.add_argument("--inherit-tags", action="store_true"); spl.add_argument("--supersede-original", action="store_true"); spl.add_argument("--note"); spl.add_argument("--actor", default="human"); spl.add_argument("--json", action="store_true"); spl.set_defaults(func=cmd_split_claim)
     rel=sub.add_parser("relate", help="Create or update a relation between two claims")
     rel.add_argument("claim_a"); rel.add_argument("claim_b"); rel.add_argument("relation_type", choices=sorted(RELATION_TYPES)); rel.add_argument("--relation-id"); rel.add_argument("--note"); rel.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); rel.set_defaults(func=cmd_relate)
     rels=sub.add_parser("relations", help="List claim relations / tension-map edges")

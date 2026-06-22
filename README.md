@@ -183,6 +183,23 @@ Audit a draft for claim traceability:
 python rh2.py audit-draft chapter.md
 ```
 
+Prioritize and inspect claims for review:
+
+```bash
+python rh2.py review-queue --status candidate_needs_review --grade C --limit 20
+python rh2.py review-packet CLM-Canessa_2024-0020
+python rh2.py review CLM-Canessa_2024-0020 verified --label good_claim --note "Checked source/page/scope."
+```
+
+Revise, supersede, mark duplicates, or split broad claims:
+
+```bash
+python rh2.py revise-claim CLAIM_ID --scope-note "Narrowed to EU AECM evidence." --label revised
+python rh2.py supersede OLD_CLAIM NEW_CLAIM --note "New source-range claim is tighter."
+python rh2.py duplicate DUPLICATE_CLAIM CANONICAL_CLAIM --reject-duplicate
+python rh2.py split-claim BROAD_CLAIM --file split_specs.json --inherit-tags --supersede-original
+```
+
 List computed evidence grades:
 
 ```bash
