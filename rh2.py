@@ -2945,7 +2945,7 @@ def cmd_split_claim(args):
     print_json({"split_from": args.claim_id, "created": created}) if args.json else print(f"Created {len(created)} split claims: {', '.join(created)}")
 
 
-PAGE_LOCATOR_RE = re.compile(r"\bpp?\.\s*(\d{1,5})(?:\s*[–—-]\s*(\d{1,5}))?", re.I)
+PAGE_LOCATOR_RE = re.compile(r"(?:\bpp?\.?\s*|[:;,]\s*)(\d{1,5})(?:\s*[–—-]\s*(\d{1,5}))?", re.I)
 
 
 def parse_citation_locator(*texts: str) -> dict[str, Any]:
@@ -2964,12 +2964,112 @@ def parse_citation_locator(*texts: str) -> dict[str, Any]:
     return {"locator_raw": m.group(0), "page_start": start, "page_end": end, "pages": pages}
 
 
+CITATION_STOPWORDS = {
+    "and", "or", "the", "this", "that", "these", "those", "with", "from", "into", "onto", "over", "under", "between", "among",
+    "have", "has", "had", "been", "being", "were", "was", "are", "is", "their", "there", "where", "which", "while", "within",
+    "farmers", "farmer", "farming", "agricultural", "agriculture", "study", "studies", "paper", "authors", "research", "literature",
+    "dessart", "canessa", "et", "al", "however", "also", "e.g", "e", "g", "such", "may", "might", "could", "would", "should",
+}
+
+DOMAIN_IMPORTANCE = {
+    "behavioural": 1.8, "behavioral": 1.8, "dispositional": 2.2, "cognitive": 2.0, "social": 1.4,
+    "attitude": 2.0, "attitudes": 2.0, "norm": 2.0, "norms": 2.0, "awareness": 2.0, "concern": 1.8,
+    "risk": 2.0, "risks": 2.0, "uncertainty": 1.8, "control": 1.8, "costs": 1.6, "benefits": 1.6,
+    "objectives": 1.8, "communication": 2.0, "interpersonal": 2.2, "adoption": 1.6, "participation": 1.6,
+    "sustainable": 1.3, "practices": 1.3, "environmental": 1.4, "aectm": 1.4, "aecm": 1.4,
+    "contract": 1.8, "transaction": 1.8, "monitoring": 1.8, "perceived": 1.5, "relevance": 1.8,
+}
+
+BOILERPLATE_RE = re.compile(r"copyright|downloaded from|creative commons|guest on|doi:|journal:|author:|^---$|^tags:", re.I)
+
+
+def citation_terms(text: str) -> list[str]:
+    toks=[]
+    for w in re.findall(r"[A-Za-z][A-Za-z-]{2,}", norm(text)):
+        w=w.strip("-")
+        if len(w) < 4 or w in CITATION_STOPWORDS or re.fullmatch(r"\d+", w):
+            continue
+        toks.append(w)
+    # preserve order, unique
+    seen=set(); out=[]
+    for t in toks:
+        if t not in seen:
+            seen.add(t); out.append(t)
+    return out
+
+
+def weighted_term_coverage(query: str, candidate_text: str) -> tuple[float, list[str], list[str]]:
+    qterms=citation_terms(query)
+    if not qterms:
+        return 0.0, [], []
+    cn=norm(candidate_text)
+    matched=[]; missing=[]; total=0.0; got=0.0
+    for t in qterms:
+        weight=DOMAIN_IMPORTANCE.get(t, 1.0)
+        total += weight
+        if re.search(rf"\b{re.escape(t)}\b", cn) or (len(t) >= 7 and t in cn):
+            got += weight; matched.append(t)
+        else:
+            missing.append(t)
+    return got / max(1.0, total), matched, missing
+
+
+def source_intro_start(text: str) -> int:
+    """Return first plausible Introduction offset; used to suppress metadata/abstract/front matter for citation-location search."""
+    patterns=[
+        r"(?im)^#\s*1\.?\s+Introduction\b",
+        r"(?im)^#\s*1\.1\.?\s+Context\b",
+        r"(?im)^#\s*Introduction\b",
+        r"(?im)^1\.?\s+Introduction\b",
+    ]
+    for pat in patterns:
+        m=re.search(pat, text or "")
+        if m:
+            return m.start()
+    # Fallback: after YAML/front matter if present, otherwise zero.
+    m=re.match(r"\A---\s*\n[\s\S]*?\n---\s*\n", text or "")
+    return m.end() if m else 0
+
+
+def span_quality_penalty(text: str, heading: str="", kind: str="") -> tuple[float, list[str]]:
+    penalties=[]; penalty=0.0
+    sample=(text or "")[:1200]
+    low=norm(sample)
+    if BOILERPLATE_RE.search(sample) or "[[" in sample or "#ma/" in low:
+        penalty += 0.35; penalties.append("boilerplate_or_annotation")
+    # Penalize table-heavy fragments unless they have very strong lexical support.
+    lines=[ln for ln in (text or "").splitlines() if ln.strip()]
+    if lines:
+        pipe_lines=sum(1 for ln in lines if ln.count("|") >= 3)
+        if pipe_lines / max(1, len(lines)) > 0.35:
+            penalty += 0.25; penalties.append("table_heavy")
+    if kind == "chunk":
+        penalty += 0.06; penalties.append("chunk_broadness")
+    if len(text or "") > 1800:
+        penalty += 0.04; penalties.append("long_span")
+    if heading and re.match(r"^\d{3,}\b|^F\. J\. Dessart", heading.strip()):
+        penalty += 0.18; penalties.append("page_header_heading")
+    return penalty, penalties
+
+
+def heading_term_bonus(query: str, heading: str) -> tuple[float, str]:
+    if not heading:
+        return 0.0, ""
+    cov, matched, _ = weighted_term_coverage(query, heading)
+    if cov <= 0:
+        return 0.0, ""
+    return min(0.14, cov * 0.18), "heading_terms:" + ",".join(matched[:4])
+
+
 def normalize_citation_query(ctx: dict[str, Any]) -> str:
     text=" ".join([ctx.get("context_text") or "", ctx.get("citation_text") or ""])
-    # Remove parenthetical citation clutter but preserve substantive words around it.
-    text=re.sub(r"\([^)]{0,160}\b\d{4}[a-z]?[^)]{0,160}\)", " ", text)
-    text=re.sub(r"\bpp?\.\s*\d{1,5}(?:\s*[–—-]\s*\d{1,5})?", " ", text, flags=re.I)
-    text=re.sub(r"\s+", " ", text).strip()
+    # Remove citation clutter but preserve substantive words around it.
+    text=re.sub(r"\([^)]{0,180}\b\d{4}[a-z]?[^)]{0,180}\)", " ", text)
+    text=re.sub(r"\b[A-Z][A-Za-z-]+\s+et\s+al\.?\s*\(?\d{4}[a-z]?\)?", " ", text)
+    text=re.sub(r"\bpp?\.?\s*\d{1,5}(?:\s*[–—-]\s*\d{1,5})?", " ", text, flags=re.I)
+    text=re.sub(r"\[[^\]]{0,80}\]\([^)]{0,120}\)", " ", text)
+    text=re.sub(r"==", "", text)
+    text=re.sub(r"\s+", " ", text).strip(" .;,")
     return text or (ctx.get("context_text") or ctx.get("citation_text") or "")
 
 
@@ -3010,20 +3110,40 @@ def page_match_score(candidate_page: str|None, locator: dict[str, Any]) -> tuple
     return -0.08, "page_mismatch"
 
 
-def citation_candidate_score(query: str, candidate_text: str, *, page: str|None, locator: dict[str, Any], function: str, heading: str="", status: str="", grade: str="") -> tuple[float, dict[str, Any]]:
-    lex=token_overlap_score(query, candidate_text)
+def citation_candidate_score(query: str, candidate_text: str, *, page: str|None, locator: dict[str, Any], function: str, heading: str="", status: str="", grade: str="", kind: str="") -> tuple[float, dict[str, Any]]:
+    # Main signal: weighted coverage of substantive citation-context terms, not generic section priors.
+    coverage, matched_terms, missing_terms = weighted_term_coverage(query, candidate_text)
+    raw_overlap=token_overlap_score(query, candidate_text)
     phrase_bonus=0.0
-    qnorm=norm(query)
+    qterms=citation_terms(query)
     cnorm=norm(candidate_text)
-    for phrase in sorted({w for w in re.findall(r"[A-Za-z][A-Za-z -]{6,40}", qnorm) if len(w.split()) >= 2}, key=len, reverse=True)[:6]:
-        if phrase in cnorm:
-            phrase_bonus += 0.03
+    for n in [3,2]:
+        for i in range(0, max(0, len(qterms)-n+1)):
+            phrase=" ".join(qterms[i:i+n])
+            if len(phrase) >= 10 and phrase in cnorm:
+                phrase_bonus += 0.04 if n == 2 else 0.07
+    phrase_bonus=min(0.18, phrase_bonus)
     pscore, pwhy=page_match_score(page, locator)
-    sscore, swhy=citation_section_prior(function, heading, candidate_text)
+    # Section prior is gated: do not let a weak lexical match win merely because it is in Introduction/Literature.
+    sscore, swhy=(0.0, "")
+    if coverage >= 0.12 or raw_overlap >= 0.08:
+        sscore, swhy=citation_section_prior(function, heading, candidate_text)
+    hbonus, hwhy=heading_term_bonus(query, heading)
     grade_bonus={"A":0.08,"B":0.05,"C":0.02,"D":0.0,"X":-0.2}.get(grade,0.0)
     status_bonus={"verified":0.08,"needs_page_check":0.02,"candidate_needs_review":0.01,"needs_source_check":0.0,"superseded":-0.2,"rejected":-0.3}.get(status,0.0)
-    score=max(0.0, lex*0.55 + phrase_bonus + pscore + sscore + grade_bonus + status_bonus)
-    why={"lexical_overlap": round(lex,4), "phrase_bonus": round(phrase_bonus,4), "page_score": pscore, "section_score": sscore, "grade_bonus": grade_bonus, "status_bonus": status_bonus, "why": [x for x in [pwhy,swhy] if x]}
+    penalty, penalty_reasons=span_quality_penalty(candidate_text, heading, kind)
+    # Require a non-trivial substantive overlap unless a page locator explicitly matches.
+    if coverage < 0.08 and not (pscore > 0):
+        base=0.0
+    else:
+        base=coverage*0.62 + raw_overlap*0.18 + phrase_bonus + pscore + sscore + hbonus + grade_bonus + status_bonus - penalty
+    score=max(0.0, base)
+    why={
+        "term_coverage": round(coverage,4), "raw_overlap": round(raw_overlap,4), "matched_terms": matched_terms[:12], "missing_terms": missing_terms[:12],
+        "phrase_bonus": round(phrase_bonus,4), "page_score": pscore, "section_score": sscore, "heading_bonus": round(hbonus,4),
+        "grade_bonus": grade_bonus, "status_bonus": status_bonus, "penalty": round(penalty,4),
+        "why": [x for x in [pwhy,swhy,hwhy] if x] + penalty_reasons
+    }
     return score, why
 
 
@@ -3047,37 +3167,47 @@ def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_cla
     locator=parse_citation_locator(c.get("citation_text"), c.get("context_text"))
     suggestions=[]
     relation=infer_relation_from_citation_function(c.get("citation_function") or "")
+    source_text=""
+    intro_cutoff=0
+    try:
+        source_text=read_source_text(target_source)
+        intro_cutoff=source_intro_start(source_text)
+    except SystemExit:
+        source_text=""
+        intro_cutoff=0
 
     if include_claims:
         rows=conn.execute("SELECT * FROM source_cards WHERE source_id=? AND verification_status!='rejected'", (target_source,)).fetchall()
         for r in rows:
             d=dict(r); card=claim_card(d, "standard")
+            # Ignore cards anchored before the introduction/front-matter boundary when offsets are available.
+            if source_text and d.get("char_start") is not None and int(d.get("char_start") or 0) < intro_cutoff:
+                continue
             text=" ".join([card.get("claim") or "", card.get("evidence") or "", card.get("scope_note") or ""])
-            score, why=citation_candidate_score(query, text, page=card.get("page"), locator=locator, function=c.get("citation_function") or "", status=card.get("status") or "", grade=card.get("evidence_grade") or "")
+            score, why=citation_candidate_score(query, text, page=card.get("page"), locator=locator, function=c.get("citation_function") or "", status=card.get("status") or "", grade=card.get("evidence_grade") or "", kind="claim")
             if score >= min_score:
                 suggestions.append({"target_type":"claim", "target_id":card["claim_id"], "source_id":target_source, "char_start":d.get("char_start"), "char_end":d.get("char_end"), "page_start":card.get("page") or "", "page_end":card.get("page") or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":claim_handle(card["claim_id"])})
 
     if include_spans:
-        source_text=""
-        try:
-            source_text=read_source_text(target_source)
-        except SystemExit:
-            source_text=""
         if source_text:
-            span_rows=conn.execute("SELECT * FROM spans WHERE source_id=? AND kind IN ('paragraph','chunk','page') ORDER BY kind, char_start", (target_source,)).fetchall()
+            # Prefer paragraph/source-range granularity; chunks are fallback, pages are too broad for citation support localization.
+            span_rows=conn.execute("SELECT * FROM spans WHERE source_id=? AND kind IN ('paragraph','chunk') ORDER BY kind, char_start", (target_source,)).fetchall()
             for sp in span_rows:
                 d=dict(sp)
                 start=d.get("char_start"); end=d.get("char_end")
                 if start is None or end is None: continue
+                if int(start) < intro_cutoff:
+                    continue
                 try:
                     text=source_text[int(start):int(end)].strip()
                 except Exception:
                     continue
                 if not text or len(text) < 40: continue
+                kind=d.get("kind") or "span"
                 page=d.get("page_start") or candidate_page_for_span(target_source, start) or ""
-                score, why=citation_candidate_score(query, text, page=page, locator=locator, function=c.get("citation_function") or "", heading=d.get("heading") or "")
+                score, why=citation_candidate_score(query, text, page=page, locator=locator, function=c.get("citation_function") or "", heading=d.get("heading") or "", kind=kind)
                 if score >= min_score:
-                    suggestions.append({"target_type":d.get("kind") or "span", "target_id":d.get("span_id"), "source_id":target_source, "char_start":start, "char_end":end, "page_start":page, "page_end":d.get("page_end") or page or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":source_range_handle(target_source, int(start), int(end))})
+                    suggestions.append({"target_type":kind, "target_id":d.get("span_id"), "source_id":target_source, "char_start":start, "char_end":end, "page_start":page, "page_end":d.get("page_end") or page or "", "score":round(score,4), "score_json":why, "matched_text":short(text, 900), "suggested_relation":relation, "status":"candidate_location", "handle":source_range_handle(target_source, int(start), int(end))})
     conn.close()
     # Deduplicate exact ranges/claims and prefer higher scores.
     by_key={}
@@ -3086,7 +3216,7 @@ def suggest_cited_claim_locations(context_id: str, *, limit: int=10, include_cla
         if key not in by_key or s["score"] > by_key[key]["score"]:
             by_key[key]=s
     ranked=sorted(by_key.values(), key=lambda x: x["score"], reverse=True)[:limit]
-    return {"context_id": context_id, "citing_source_id": c.get("citing_source_id"), "matched_source_id": target_source, "citation_function": c.get("citation_function"), "citation_text": c.get("citation_text"), "context_text": c.get("context_text"), "query_text": query, "locator": locator, "suggestions": ranked}
+    return {"context_id": context_id, "citing_source_id": c.get("citing_source_id"), "matched_source_id": target_source, "citation_function": c.get("citation_function"), "citation_text": c.get("citation_text"), "context_text": c.get("context_text"), "query_text": query, "intro_cutoff": intro_cutoff, "locator": locator, "suggestions": ranked}
 
 
 def store_citation_location_suggestions(packet: dict[str, Any]) -> list[str]:

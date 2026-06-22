@@ -153,3 +153,7 @@ python rh2.py accept-citation-location CLOC-... --citing-claim-id CLAIM_ID --rel
 ```
 
 The ranker uses citation context text, citation function, matched source, existing source cards, available source spans, page locators such as `p.`/`pp.` when present, section priors and transparent lexical scoring. Treat statuses as candidate triage labels until a reviewer checks support direction, scope and possible overstatement.
+
+### Citation-location ranker quality notes
+
+The citation-location ranker now suppresses source material before the Introduction/front-matter boundary and penalizes boilerplate, annotation tags and table-heavy spans. It is still a triage ranker, not a verifier. When testing newly parsed papers, prefer canonical markdown ingested with `--clean-markup` so front matter, `==highlight==`, and `#MA/...` annotations do not pollute lexical matching.
