@@ -3917,6 +3917,141 @@ def cmd_repair_citation_contexts(args):
             print(f"  new: {short(ch['new'], 220)}")
 
 
+# ---------- reference triage / reading priority / learned lightweight rankers ----------
+
+LEARNED_RANKERS_PATH = REPORTS / "learned_rankers.json"
+
+
+def feature_terms(text: str) -> list[str]:
+    terms=list(citation_terms(text))
+    for a,b in zip(terms, terms[1:]):
+        if a not in CITATION_STOPWORDS and b not in CITATION_STOPWORDS:
+            terms.append(f"{a}_{b}")
+    return terms
+
+
+def train_term_delta(pos_texts: list[str], neg_texts: list[str]) -> dict[str, float]:
+    def counts(texts):
+        c=collections.Counter()
+        for txt in texts:
+            c.update(set(feature_terms(txt)))
+        return c
+    pc=counts(pos_texts); nc=counts(neg_texts); vocab=set(pc)|set(nc)
+    pden=max(1,len(pos_texts)); nden=max(1,len(neg_texts)); out={}
+    for t in vocab:
+        val=((pc[t]+0.5)/(pden+1))-((nc[t]+0.5)/(nden+1))
+        if abs(val) >= 0.03: out[t]=round(val,5)
+    return dict(sorted(out.items(), key=lambda kv: abs(kv[1]), reverse=True)[:1500])
+
+
+def cmd_train_rankers(args):
+    init_db(True); conn=db()
+    sc_rows=[dict(r) for r in conn.execute("SELECT * FROM source_card_suggestions WHERE status IN ('accepted','rejected')").fetchall()]
+    cl_rows=[dict(r) for r in conn.execute("SELECT * FROM citation_location_suggestions WHERE status IN ('accepted','rejected','weak_match')").fetchall()]
+    sc_pos=[r.get("text") or "" for r in sc_rows if r.get("status") == "accepted"]
+    sc_neg=[r.get("text") or "" for r in sc_rows if r.get("status") == "rejected"]
+    cl_pos=[" ".join([r.get("query_text") or "", r.get("matched_text") or ""]) for r in cl_rows if r.get("status") == "accepted"]
+    cl_neg=[" ".join([r.get("query_text") or "", r.get("matched_text") or ""]) for r in cl_rows if r.get("status") in {"rejected","weak_match"}]
+    model={"created_at": now(), "source_card": {"positive": len(sc_pos), "negative": len(sc_neg), "weights": train_term_delta(sc_pos, sc_neg)}, "citation_location": {"positive": len(cl_pos), "negative": len(cl_neg), "weights": train_term_delta(cl_pos, cl_neg)}}
+    REPORTS.mkdir(exist_ok=True); LEARNED_RANKERS_PATH.write_text(json.dumps(model, ensure_ascii=False, indent=2), encoding="utf-8")
+    conn.close()
+    if args.json: print_json(model)
+    else:
+        print(f"Wrote {LEARNED_RANKERS_PATH.relative_to(ROOT)}")
+        print(f"source_card labels: +{len(sc_pos)} / -{len(sc_neg)}")
+        print(f"citation_location labels: +{len(cl_pos)} / -{len(cl_neg)}")
+
+
+def cmd_reference_match_queue(args):
+    init_db(True); conn=db(); where=[]; params=[]
+    if args.source_id: where.append("source_id=?"); params.append(args.source_id)
+    if args.status: where.append("status=?"); params.append(args.status)
+    refs=[dict(r) for r in conn.execute("SELECT * FROM source_references" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY source_id, reference_id LIMIT ?", (*params,args.limit)).fetchall()]
+    sources=[dict(r) for r in conn.execute("SELECT source_id,title,authors,year,doi FROM sources").fetchall()]
+    out=[]
+    for r in refs:
+        candidates=[]
+        for src in sources:
+            if src["source_id"] == r["source_id"]: continue
+            score=0.0; why=[]
+            if normalize_doi(r.get("doi")) and normalize_doi(src.get("doi")) == normalize_doi(r.get("doi")):
+                score += 1.0; why.append("doi")
+            if r.get("year") and str(src.get("year") or "")[:4] == year_base(r.get("year")):
+                score += 0.15; why.append("year")
+            ak=r.get("author_key") or ""
+            if ak and (ak in source_author_keys(src.get("authors")) or ak in compact_key((src.get("authors") or "") + " " + (src.get("title") or ""))):
+                score += 0.35; why.append("author")
+            title_terms=set(citation_terms(r.get("title") or r.get("raw_text") or "")); src_terms=set(citation_terms(src.get("title") or ""))
+            if title_terms:
+                ov=len(title_terms & src_terms)/max(1,len(title_terms)); score += ov*0.35
+                if ov: why.append(f"title_overlap:{round(ov,2)}")
+            if score>0: candidates.append({"source_id":src["source_id"],"title":src.get("title"),"doi":src.get("doi"),"score":round(score,3),"why":why})
+        out.append({"reference":r,"candidate_matches":sorted(candidates,key=lambda x:x["score"],reverse=True)[:args.candidates],"priority":len(candidates)+(5 if r.get("status") == "missing_source" else 0)})
+    conn.close(); out=sorted(out,key=lambda x:x["priority"],reverse=True)
+    if args.json: print_json({"count":len(out),"items":out})
+    else:
+        print(f"Reference match queue: {len(out)}")
+        for item in out:
+            r=item["reference"]; print(f"- {r['reference_id']} [{r.get('status')}] {r.get('author_key')} {r.get('year')} · {short(r.get('title') or r.get('raw_text'), 120)}")
+            for c in item["candidate_matches"]: print(f"  candidate {c['source_id']} score:{c['score']} why:{','.join(c['why'])}")
+
+
+def cmd_resolve_reference(args):
+    init_db(True); conn=db(); ref=conn.execute("SELECT * FROM source_references WHERE reference_id=?", (args.reference_id,)).fetchone()
+    if not ref: raise SystemExit(f"Unknown reference_id: {args.reference_id}")
+    if args.matched_source_id and not conn.execute("SELECT 1 FROM sources WHERE source_id=?", (args.matched_source_id,)).fetchone(): raise SystemExit(f"Unknown matched source_id: {args.matched_source_id}")
+    status=args.status or ("matched_local" if args.matched_source_id else "missing_source")
+    conn.execute("UPDATE source_references SET matched_source_id=?, status=? WHERE reference_id=?", (args.matched_source_id or "", status, args.reference_id))
+    conn.execute("UPDATE citation_contexts SET matched_source_id=?, verification_status=?, updated_at=? WHERE reference_id=?", (args.matched_source_id or "", "needs_verification" if args.matched_source_id else "missing_source", now(), args.reference_id))
+    conn.commit(); conn.close(); print(f"{args.reference_id} -> {args.matched_source_id or 'NONE'} ({status})")
+
+
+def cmd_reading_priority(args):
+    init_db(True); conn=db(); where=[]; params=[]
+    if args.source_id: where.append("sr.source_id=?"); params.append(args.source_id)
+    rows=[dict(r) for r in conn.execute(f"""SELECT sr.*, COUNT(cc.context_id) AS cite_count, GROUP_CONCAT(substr(cc.context_text,1,240),' || ') AS contexts FROM source_references sr LEFT JOIN citation_contexts cc ON cc.reference_id=sr.reference_id {('WHERE '+ ' AND '.join(where)) if where else ''} GROUP BY sr.reference_id""", params).fetchall()]
+    q=args.query or ""; items=[]
+    for r in rows:
+        if args.missing_only and r.get("matched_source_id"): continue
+        text=" ".join([r.get("title") or "", r.get("raw_text") or "", r.get("contexts") or ""]); qscore=token_overlap_score(q,text) if q else 0.0
+        score=(r.get("cite_count") or 0)*1.0 + qscore*3.0 + (0.4 if normalize_doi(r.get("doi")) else 0.0) + (0.5 if not r.get("matched_source_id") else 0.0)
+        if score <= 0 and q: continue
+        items.append({"score":round(score,3),"reference_id":r["reference_id"],"source_id":r["source_id"],"author_key":r.get("author_key"),"year":r.get("year"),"title":r.get("title"),"doi":r.get("doi"),"matched_source_id":r.get("matched_source_id"),"status":r.get("status"),"citation_context_count":r.get("cite_count"),"context_preview":short(r.get("contexts"),260)})
+    conn.close(); items=sorted(items,key=lambda x:x["score"], reverse=True)[:args.limit]
+    if args.json: print_json({"count":len(items),"items":items})
+    else:
+        print(f"Reading priority: {len(items)}")
+        for x in items:
+            print(f"- score:{x['score']} cites:{x['citation_context_count']} {x['author_key']} {x['year']} {x.get('title') or x['reference_id']} doi:{x.get('doi') or '-'} matched:{x.get('matched_source_id') or '-'}")
+            if x.get("context_preview"): print(f"  contexts: {x['context_preview']}")
+
+
+def assess_citation_support(context_text: str, matched_text: str, score: float=0.0) -> dict[str, Any]:
+    c=norm(context_text); m=norm(matched_text); flags=[]; verdict="needs_review"
+    if score >= 0.55: verdict="likely_supported"
+    elif score >= 0.30: verdict="possibly_supported"
+    elif score > 0: verdict="weak_match"
+    else: verdict="no_match"
+    if any(k in c for k in ["cause","causes","drives","determines","leads to"]) and any(k in m for k in ["associated","correlated","related","may","might"]):
+        flags.append("possibly_overstated_causal_language"); verdict="possibly_overstated"
+    if (any(k in c for k in ["positive","increase","higher","boost"]) and any(k in m for k in ["negative","decrease","lower","no effect","mixed"])) or (any(k in c for k in ["negative","decrease","lower"]) and any(k in m for k in ["positive","increase","higher"])):
+        flags.append("possible_direction_mismatch"); verdict="needs_review"
+    return {"verdict":verdict,"flags":flags}
+
+
+def cmd_assess_citation_location(args):
+    init_db(True); conn=db(); row=conn.execute("SELECT * FROM citation_location_suggestions WHERE suggestion_id=?", (args.suggestion_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown suggestion_id: {args.suggestion_id}")
+    sug=dict(row); ctx=conn.execute("SELECT * FROM citation_contexts WHERE context_id=?", (sug["context_id"],)).fetchone(); conn.close()
+    assessment=assess_citation_support((dict(ctx).get("context_text") if ctx else sug.get("query_text")) or "", sug.get("matched_text") or "", float(sug.get("score") or 0))
+    payload={"suggestion_id":args.suggestion_id,"context_id":sug.get("context_id"),"score":sug.get("score"),"assessment":assessment,"suggestion":sug}
+    if args.json: print_json(payload)
+    else:
+        print(f"{args.suggestion_id}: {assessment['verdict']} score:{sug.get('score')}")
+        if assessment["flags"]: print("flags: " + ", ".join(assessment["flags"]))
+        print(short(sug.get("matched_text"), 320))
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
@@ -4029,6 +4164,16 @@ def main():
     vc=sub.add_parser("verify-citation", help="Mark a citation context as accurate/inaccurate/missing/etc.")
     vc.add_argument("context_id"); vc.add_argument("status", choices=["verified_accurate","verified_inaccurate","misleading","missing_source","needs_source","needs_context","not_relevant"]); vc.add_argument("--note"); vc.set_defaults(func=cmd_verify_citation)
     rep=sub.add_parser("repair-evidence", help="Repair overlong/noisy evidence quotes, optionally using a V1 ledger as source of curated quotes"); rep.add_argument("--from-v1"); rep.add_argument("--max-chars", type=int, default=700); rep.add_argument("--dry-run", action="store_true"); rep.add_argument("--json", action="store_true"); rep.add_argument("--limit", type=int, default=30); rep.set_defaults(func=cmd_repair_evidence)
+    tr=sub.add_parser("train-rankers", help="Train transparent local term-rankers from accepted/rejected suggestions")
+    tr.add_argument("--json", action="store_true"); tr.set_defaults(func=cmd_train_rankers)
+    rmq=sub.add_parser("reference-match-queue", help="Suggest local source matches for unresolved references")
+    rmq.add_argument("--source-id"); rmq.add_argument("--status"); rmq.add_argument("--limit", type=int, default=80); rmq.add_argument("--candidates", type=int, default=5); rmq.add_argument("--json", action="store_true"); rmq.set_defaults(func=cmd_reference_match_queue)
+    rrref=sub.add_parser("resolve-reference", help="Manually resolve a reference to a local source and cascade citation contexts")
+    rrref.add_argument("reference_id"); rrref.add_argument("--matched-source-id", default=""); rrref.add_argument("--status"); rrref.set_defaults(func=cmd_resolve_reference)
+    rp=sub.add_parser("reading-priority", help="Rank cited references to read/import next")
+    rp.add_argument("--source-id"); rp.add_argument("--query"); rp.add_argument("--missing-only", action="store_true"); rp.add_argument("--limit", type=int, default=30); rp.add_argument("--json", action="store_true"); rp.set_defaults(func=cmd_reading_priority)
+    acl=sub.add_parser("assess-citation-location", help="Heuristic support/correctness assessment for a stored citation-location suggestion")
+    acl.add_argument("suggestion_id"); acl.add_argument("--json", action="store_true"); acl.set_defaults(func=cmd_assess_citation_location)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 

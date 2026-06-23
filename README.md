@@ -229,6 +229,16 @@ python rh2.py source-card-suggestions --source-id Dessart_2019 --card-role resul
 python rh2.py accept-source-card-suggestion SCSUG-... --status candidate_needs_review
 ```
 
+Learn from reviewed suggestions and triage what to read/import next:
+
+```bash
+python rh2.py train-rankers
+python rh2.py reference-match-queue --source-id Canessa_2024
+python rh2.py resolve-reference REF-Canessa_2024-ref_dessart_behavioural_2019 --matched-source-id Dessart_2019
+python rh2.py reading-priority --query "contract flexibility transaction costs" --missing-only
+python rh2.py assess-citation-location CLOC-...
+```
+
 Audit a draft for claim traceability:
 
 ```bash

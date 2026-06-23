@@ -185,3 +185,27 @@ Before backtracking citations from a noisy parsed source, repair citation contex
 python rh2.py repair-citation-contexts --source-id SOURCE_ID --dry-run
 python rh2.py repair-citation-contexts --source-id SOURCE_ID
 ```
+
+## Learning and reading-priority loop
+
+Reviewed source-card suggestions and reviewed citation-location suggestions are training data. The current implementation stays fully local/free and trains transparent term-delta rankers:
+
+```bash
+python rh2.py train-rankers
+```
+
+Use reference triage before importing new papers:
+
+```bash
+python rh2.py reference-match-queue --source-id SOURCE_ID
+python rh2.py resolve-reference REF-... --matched-source-id LOCAL_SOURCE_ID
+python rh2.py reading-priority --query "contract flexibility" --missing-only
+```
+
+Backtrack correctness can be triaged with:
+
+```bash
+python rh2.py assess-citation-location CLOC-...
+```
+
+These commands are deliberately heuristic. Treat their output as prioritisation and review guidance, not final verification.
