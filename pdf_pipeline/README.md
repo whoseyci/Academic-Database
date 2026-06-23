@@ -47,7 +47,10 @@ sandbox — see `output/OPTIMIZATION_NOTES.md` sections (h) through
 # 1. Convert one PDF
 python3 -m pdf_pipeline.convert path/to/paper.pdf
 
-# 2. Batch over a directory
+# 2. Validate the output contract for the harness
+python3 -m pdf_pipeline.validate /path/to/output/paper-slug
+
+# 3. Batch over a directory
 python3 -m pdf_pipeline.batch /path/to/pdfs --output /path/to/output
 
 # 3. Run the figure-vision pass over already-converted papers

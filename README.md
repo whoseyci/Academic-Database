@@ -59,6 +59,7 @@ This repo now contains the local parser under `pdf_pipeline/` (merged from `PDF-
 ```bash
 # Convert PDF to paper.md + paper.parse.json
 python -m pdf_pipeline.convert path/to/paper.pdf --out data/converted
+python -m pdf_pipeline.validate data/converted/paper-slug
 
 # Ingest the converted output directory into the claim ledger
 python rh2.py ingest-converted data/converted/paper-slug --clean-markup

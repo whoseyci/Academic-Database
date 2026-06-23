@@ -805,6 +805,13 @@ def convert_pdf(pdf_path, out_root, force=False):
         "confidence": confidence,
     }
     (out_dir / "stats.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
+    # Parser QA report for harness readiness. Imported lazily to avoid slowing conversion startup.
+    try:
+        from validate import validate_converted_dir
+        parse_quality = validate_converted_dir(out_dir)
+        (out_dir / "parse_quality.json").write_text(json.dumps(parse_quality, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        (out_dir / "parse_quality.json").write_text(json.dumps({"ok": False, "errors": [str(e)]}, indent=2), encoding="utf-8")
     marker.write_text("done\n")
     
     print(f"      ok {n_pages}p, {len(figs_meta)} figs, {len(references)} refs, "

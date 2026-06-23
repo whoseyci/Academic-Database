@@ -940,10 +940,14 @@ def cmd_ingest(args):
         finally:
             try: tmp.unlink()
             except Exception: pass
-        print(f"Ingested {sid} (cleaned markup)")
+        imported=import_parse_map_bibliography(sid, Path(args.parse_map) if args.parse_map else None, clear_existing=True)
+        suffix=f" refs={imported.get('references',0)} cites={imported.get('citation_contexts',0)}" if imported.get('references') or imported.get('citation_contexts') else ""
+        print(f"Ingested {sid} (cleaned markup){suffix}")
     else:
         ingest_source(Path(args.path), sid, meta, Path(args.parse_map) if args.parse_map else None)
-        print(f"Ingested {sid}")
+        imported=import_parse_map_bibliography(sid, Path(args.parse_map) if args.parse_map else None, clear_existing=True)
+        suffix=f" refs={imported.get('references',0)} cites={imported.get('citation_contexts',0)}" if imported.get('references') or imported.get('citation_contexts') else ""
+        print(f"Ingested {sid}{suffix}")
 
 
 def metadata_from_converted_dir(converted_dir: Path) -> tuple[Path, Path|None, dict[str, Any]]:
@@ -1002,9 +1006,12 @@ def cmd_ingest_converted(args):
             except Exception: pass
     else:
         ingest_source(md_path, sid, meta, parse_path)
-    payload={"source_id": sid, "paper_md": str(md_path), "parse_map": str(parse_path) if parse_path else "", "metadata": meta}
+    imported=import_parse_map_bibliography(sid, parse_path, clear_existing=True)
+    payload={"source_id": sid, "paper_md": str(md_path), "parse_map": str(parse_path) if parse_path else "", "metadata": meta, "imported_parse_map": imported}
     if args.json: print_json(payload)
-    else: print(f"Ingested converted paper {sid} from {converted_dir}" + (" with parse map" if parse_path else ""))
+    else:
+        suffix=f" refs={imported.get('references',0)} cites={imported.get('citation_contexts',0)}" if imported.get('references') or imported.get('citation_contexts') else ""
+        print(f"Ingested converted paper {sid} from {converted_dir}" + (" with parse map" if parse_path else "") + suffix)
 
 
 def cmd_mark_claim(args):
@@ -2144,6 +2151,81 @@ def parse_reference_lines(text: str, source_id: str) -> list[dict[str, Any]]:
         matched=match_local_source(author_key, year, source_id, doi=doi, canonical_source_id=canonical)
         rows.append({"reference_id": reference_id, "source_id": source_id, "reference_anchor": anchor, "raw_text": raw, "author_key": author_key, "year": year, "title": title, "doi": doi, "canonical_source_id": canonical, "matched_source_id": matched, "status": "matched_local" if matched else "missing_source", "created_at": now()})
     return rows
+
+
+def import_parse_map_bibliography(source_id: str, parse_map_path: Path|None, *, clear_existing: bool=False) -> dict[str, Any]:
+    """Import parser sidecar references/citations into source_references/citation_contexts.
+
+    The sidecar's `reference_id` values are local to the parser output (e.g. ref-001).
+    They are converted to stable DB instance IDs: REF-{source_id}-{reference_id}.
+    """
+    if not parse_map_path or not Path(parse_map_path).exists():
+        return {"references": 0, "citation_contexts": 0, "skipped": "no_parse_map"}
+    init_db(True)
+    parse_map=json.loads(Path(parse_map_path).read_text(encoding="utf-8"))
+    try:
+        text=read_source_text(source_id)
+    except SystemExit:
+        text=""
+    offsets=line_offsets(text or "")
+    refs=parse_map.get("references", []) or []
+    cites=parse_map.get("citations", []) or []
+    conn=db(); cur=conn.cursor()
+    if clear_existing:
+        cur.execute("DELETE FROM citation_contexts WHERE citing_source_id=?", (source_id,))
+        cur.execute("DELETE FROM source_references WHERE source_id=?", (source_id,))
+    ref_id_map={}
+    inserted_refs=0
+    for i,r in enumerate(refs,1):
+        local_id=str(r.get("reference_id") or r.get("id") or f"ref-{i:03d}")
+        raw=clean_reference_raw(r.get("raw_text") or r.get("text") or "")
+        doi=extract_doi_from_text(r.get("doi") or raw)
+        year=str(r.get("year") or year_token_from_text(raw) or "")
+        title=str(r.get("title") or "")
+        authors=r.get("authors") or []
+        author_part="; ".join(authors) if isinstance(authors, list) else str(authors or "")
+        author_key=str(r.get("author_key") or author_key_from_author_part(author_part or raw))
+        if not title or not author_key or not year:
+            ak2,y2,title2,_ap=parse_reference_author_year_title(raw)
+            author_key=author_key or ak2; year=year or y2; title=title or title2
+        canonical=str(r.get("canonical_reference_id") or r.get("canonical_source_id") or deterministic_source_id(author_key, year, title, doi))
+        matched=match_local_source(author_key, year, source_id, doi=doi, canonical_source_id=canonical)
+        db_ref_id=f"REF-{source_id}-{local_id}"
+        ref_id_map[local_id]=db_ref_id
+        cur.execute("""INSERT OR REPLACE INTO source_references
+            (reference_id, source_id, reference_anchor, raw_text, author_key, year, title, doi, canonical_source_id, matched_source_id, status, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""", (db_ref_id, source_id, local_id, raw, author_key, year, title, doi, canonical, matched, "matched_local" if matched else "missing_source", now()))
+        inserted_refs += 1
+    inserted_cites=0
+    for i,c in enumerate(cites,1):
+        local_ref=str(c.get("reference_id") or "")
+        db_ref=ref_id_map.get(local_ref) or (f"REF-{source_id}-{local_ref}" if local_ref else None)
+        ref_row=cur.execute("SELECT * FROM source_references WHERE reference_id=?", (db_ref,)).fetchone() if db_ref else None
+        start=c.get("char_start"); end=c.get("char_end")
+        ctx_start=c.get("context_char_start", start); ctx_end=c.get("context_char_end", end)
+        try:
+            start_i=int(start); end_i=int(end); ctx_start_i=int(ctx_start); ctx_end_i=int(ctx_end)
+        except Exception:
+            continue
+        context_text=c.get("sentence_context") or c.get("context_text") or (text[ctx_start_i:ctx_end_i].strip() if text else "")
+        citation_text=c.get("raw_text") or c.get("label") or (text[start_i:end_i].strip() if text else "")
+        author_key=ref_row["author_key"] if ref_row else ""
+        year=ref_row["year"] if ref_row else year_token_from_text(citation_text)
+        canonical=ref_row["canonical_source_id"] if ref_row else ""
+        matched=ref_row["matched_source_id"] if ref_row else None
+        context_id=str(c.get("citation_id") or f"cit-{i:05d}")
+        if not context_id.startswith("CITCTX-"):
+            context_id=f"CITCTX-{source_id}-{i:05d}"
+        cur.execute("""INSERT OR REPLACE INTO citation_contexts
+            (context_id, citing_source_id, reference_id, reference_anchor, canonical_source_id, cited_author_key, cited_year, citation_text, char_start, char_end, line_start, line_end, context_text, citation_function, matched_source_id, verification_status, verification_note, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            context_id, source_id, db_ref, local_ref, canonical, author_key, year, citation_text, start_i, end_i,
+            line_no(offsets,start_i) if text else None, line_no(offsets,end_i) if text else None, context_text,
+            classify_citation_function(context_text), matched, "needs_verification" if matched else "missing_source", "imported_from_parse_map", now(), now()
+        ))
+        inserted_cites += 1
+    conn.commit(); conn.close()
+    return {"references": inserted_refs, "citation_contexts": inserted_cites}
 
 
 def sentence_context_for_span(text: str, start: int, end: int, max_chars: int = 700) -> tuple[int, int, str]:
