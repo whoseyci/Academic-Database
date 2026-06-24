@@ -458,6 +458,8 @@ npm run build
 
 The Electron shell starts the local Python `review-ui`, opens it in an app window, checks `origin/main` for updates, and shows a **Restart to install** banner when a newer commit is available. It still uses your local repo checkout for the SQLite DB, parser outputs, blobs, and `.venv`.
 
+The cockpit supports standard copy/paste shortcuts through the Electron Edit menu, plus per-card **Copy ID** and **Copy command** buttons, filtering, tabs, and quick review actions.
+
 ### Optional Mac app wrapper
 
 If you prefer a clickable app bundle, build and install the local launcher:

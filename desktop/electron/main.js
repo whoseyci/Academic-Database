@@ -182,6 +182,8 @@ async function installUpdate() {
 function createMenu() {
   const template = [
     ...(process.platform === 'darwin' ? [{ role: 'appMenu' }] : []),
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
     {
       label: 'Academic Database',
       submenu: [
