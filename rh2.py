@@ -358,6 +358,16 @@ def init_db(quiet: bool=False) -> None:
         FOREIGN KEY(claim_id) REFERENCES source_cards(claim_id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_synthesis_topic ON synthesis_cards(topic);
+    CREATE TABLE IF NOT EXISTS local_embeddings (
+        item_id TEXT PRIMARY KEY,
+        item_type TEXT,
+        source_id TEXT,
+        text_hash TEXT,
+        dim INTEGER,
+        vector_json TEXT,
+        created_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_local_embeddings_type ON local_embeddings(item_type, source_id);
     CREATE TABLE IF NOT EXISTS query_cache (
         query_hash TEXT PRIMARY KEY,
         query TEXT,
@@ -4125,7 +4135,7 @@ def cmd_assess_citation_location(args):
     init_db(True); conn=db(); row=conn.execute("SELECT * FROM citation_location_suggestions WHERE suggestion_id=?", (args.suggestion_id,)).fetchone()
     if not row: raise SystemExit(f"Unknown suggestion_id: {args.suggestion_id}")
     sug=dict(row); ctx=conn.execute("SELECT * FROM citation_contexts WHERE context_id=?", (sug["context_id"],)).fetchone(); conn.close()
-    assessment=assess_citation_support((dict(ctx).get("context_text") if ctx else sug.get("query_text")) or "", sug.get("matched_text") or "", float(sug.get("score") or 0))
+    assessment=assess_citation_support_deep((dict(ctx).get("context_text") if ctx else sug.get("query_text")) or "", sug.get("matched_text") or "", float(sug.get("score") or 0), (dict(ctx).get("citation_function") if ctx else ""))
     payload={"suggestion_id":args.suggestion_id,"context_id":sug.get("context_id"),"score":sug.get("score"),"assessment":assessment,"suggestion":sug}
     if args.json: print_json(payload)
     else:
@@ -4578,10 +4588,111 @@ def cmd_export_review_ui(args):
     print(f"Wrote {out_dir/'review.html'} and {data_dir/'review_export.json'}")
 
 
+# ---------- embeddings / parser tournament / deeper correctness ----------
+
+EMBED_DIM_DEFAULT = 2048
+
+
+def embedding_tokens(text: str) -> list[str]:
+    terms=list(citation_terms(text))
+    out=terms[:]
+    for n in (2,3):
+        for i in range(0, max(0, len(terms)-n+1)):
+            out.append("_".join(terms[i:i+n]))
+    return out
+
+
+def sparse_embed(text: str, dim: int=EMBED_DIM_DEFAULT) -> dict[str, float]:
+    vec={}
+    for t in embedding_tokens(text):
+        idx=int(hashlib.sha1(t.encode('utf-8')).hexdigest()[:8],16)%dim
+        vec[str(idx)]=vec.get(str(idx),0.0)+DOMAIN_IMPORTANCE.get(t,1.0)
+    n=sum(v*v for v in vec.values())**0.5
+    return {k:round(v/n,6) for k,v in vec.items()} if n else {}
+
+
+def sparse_cosine(a: dict[str,float], b: dict[str,float]) -> float:
+    if len(a)>len(b): a,b=b,a
+    return sum(v*b.get(k,0.0) for k,v in a.items())
+
+
+def source_card_embedding_text(row: sqlite3.Row|dict[str,Any]) -> str:
+    d=dict(row)
+    return "\n".join([d.get('claim') or '', d.get('evidence') or '', d.get('scope_note') or '', ' '.join(tags_for_claim(d.get('claim_id')))])
+
+
+def cmd_build_embeddings(args):
+    init_db(True); conn=db(); cur=conn.cursor(); written=0
+    levels=split_list(args.level) or ['source_cards']
+    if 'source_cards' in levels:
+        rows=cur.execute("SELECT * FROM source_cards" + (" WHERE source_id=?" if args.source_id else ""), ((args.source_id,) if args.source_id else ())).fetchall()
+        for r in rows:
+            txt=source_card_embedding_text(r); vec=sparse_embed(txt,args.dim)
+            cur.execute("INSERT OR REPLACE INTO local_embeddings VALUES (?,?,?,?,?,?,?)", (f"claim:{r['claim_id']}",'source_card',r['source_id'],sha1_short(txt),args.dim,json.dumps(vec,separators=(',',':')),now()))
+            written+=1
+    conn.commit(); conn.close()
+    print_json({'written':written,'levels':levels,'dim':args.dim}) if args.json else print(f"Wrote {written} local embeddings")
+
+
+def cmd_hybrid_retrieve(args):
+    lex=retrieve_claims(args.query, max(args.limit*4,30), 'standard', {'source_id':args.source_id,'verified_only':args.verified_only,'statuses':split_list(args.status),'claim_types':split_list(args.claim_type),'card_roles':split_list(args.card_role)})
+    qv=sparse_embed(args.query,args.dim)
+    conn=db(); emb=conn.execute("SELECT * FROM local_embeddings WHERE item_type='source_card'" + (" AND source_id=?" if args.source_id else ""), ((args.source_id,) if args.source_id else ())).fetchall(); conn.close()
+    sem={}
+    for r in emb:
+        cid=str(r['item_id']).split(':',1)[1]
+        sem[cid]=sparse_cosine(qv,json.loads(r['vector_json'] or '{}'))
+    by={c['claim_id']:c for c in lex}
+    if args.semantic_only or args.include_semantic_only:
+        conn=db(); rows=conn.execute("SELECT * FROM source_cards WHERE verification_status!='rejected'" + (" AND source_id=?" if args.source_id else ""), ((args.source_id,) if args.source_id else ())).fetchall(); conn.close()
+        for r in rows:
+            cid=r['claim_id']
+            if sem.get(cid,0)>0 and cid not in by: by[cid]=claim_card(r,'standard')
+    out=[]
+    for cid,c in by.items():
+        hybrid=(1-args.semantic_weight)*float(c.get('score') or 0)+args.semantic_weight*sem.get(cid,0)*10
+        out.append({**c,'semantic_score':round(sem.get(cid,0),4),'hybrid_score':round(hybrid,4)})
+    out=sorted(out,key=lambda x:x['hybrid_score'],reverse=True)[:args.limit]
+    if args.json: print_json({'query':args.query,'count':len(out),'results':out})
+    else:
+        print(f"# hybrid retrieve: {args.query}\n")
+        for r in out:
+            print(f"- **{r['claim_id']}** hybrid:{r['hybrid_score']} sem:{r['semantic_score']} lex:{r.get('score')} {r['claim']}")
+
+
+def cmd_parser_tournament(args):
+    import subprocess
+    pdf=Path(args.pdf); modes=split_list(args.modes) or ['pdftotext','pymupdf4llm','auto','reorder']; results=[]
+    for mode in modes:
+        t0=datetime.now(timezone.utc)
+        try:
+            cp=subprocess.run([sys.executable,'-m','pdf_pipeline.text_extract',str(pdf),'--mode',mode],capture_output=True,text=True,timeout=args.timeout)
+            sec=(datetime.now(timezone.utc)-t0).total_seconds(); txt=cp.stdout or ''
+            results.append({'mode':mode,'ok':cp.returncode==0,'seconds':round(sec,2),'chars':len(txt),'words':len(re.findall(r'\w+',txt)),'citation_like':len(re.findall(r'\b[A-Z][A-Za-z-]+\s+et\s+al\.?,?\s+\d{4}|\([A-Z][^)]*\d{4}[^)]*\)',txt)),'stderr':short(cp.stderr,240)})
+        except Exception as e: results.append({'mode':mode,'ok':False,'error':str(e)})
+    payload={'pdf':str(pdf),'results':results,'best_by_words':max(results,key=lambda x:x.get('words',0)) if results else None}
+    if args.out:
+        od=Path(args.out); od.mkdir(parents=True,exist_ok=True); (od/'parser_tournament.json').write_text(json.dumps(payload,indent=2),encoding='utf-8')
+        (od/'parser_tournament.html').write_text('<html><body><pre>'+json.dumps(payload,indent=2)+'</pre></body></html>',encoding='utf-8')
+    if args.json: print_json(payload)
+    else:
+        for r in results: print(f"{r.get('mode')}: ok={r.get('ok')} words={r.get('words')} cites={r.get('citation_like')} seconds={r.get('seconds')} {r.get('error','')}")
+
+
+def assess_citation_support_deep(context_text: str, matched_text: str, score: float=0.0, citation_function: str='') -> dict[str, Any]:
+    c=norm(context_text); m=norm(matched_text); flags=[]
+    cov, matched, missing=weighted_term_coverage(context_text, matched_text)
+    verdict='likely_supported' if score>=0.62 and cov>=0.35 else 'possibly_supported' if score>=0.35 and cov>=0.2 else 'weak_match' if score>0 or cov>0.08 else 'no_match'
+    if any(k in c for k in ['cause','causes','drives','determines','leads to']) and any(k in m for k in ['associated','correlated','related','may','might']): flags.append('possibly_overstated_causal_language'); verdict='possibly_overstated'
+    if (any(k in c for k in ['positive','increase','higher','boost']) and any(k in m for k in ['negative','decrease','lower','no effect','mixed'])) or (any(k in c for k in ['negative','decrease','lower']) and any(k in m for k in ['positive','increase','higher'])): flags.append('possible_direction_mismatch'); verdict='needs_review'
+    if 'method' in norm(citation_function) and not re.search(r"method|model|data|approach|framework|review", m): flags.append('possible_method_mismatch')
+    return {'verdict':verdict,'flags':flags,'term_coverage':round(cov,4),'matched_terms':matched[:12],'missing_terms':missing[:12]}
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
-    tables=["sources","spans","source_cards","source_card_suggestions","source_location_signals","synthesis_cards","synthesis_claims","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
+    tables=["sources","spans","source_cards","source_card_suggestions","source_location_signals","synthesis_cards","synthesis_claims","local_embeddings","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
     stats={}
     for t in tables:
         try: stats[t]=cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -4730,6 +4841,12 @@ def main():
     synb.add_argument("synthesis_id"); synb.add_argument("--json", action="store_true"); synb.set_defaults(func=cmd_synthesis_brief)
     rui=sub.add_parser("export-review-ui", help="Export a static local review cockpit")
     rui.add_argument("--out", default="reports/review_ui"); rui.add_argument("--limit", type=int, default=120); rui.set_defaults(func=cmd_export_review_ui)
+    be=sub.add_parser("build-embeddings", help="Build local hashed sparse embeddings for hybrid retrieval")
+    be.add_argument("--level", default="source_cards"); be.add_argument("--source-id"); be.add_argument("--dim", type=int, default=2048); be.add_argument("--json", action="store_true"); be.set_defaults(func=cmd_build_embeddings)
+    hr=sub.add_parser("hybrid-retrieve", help="Retrieve with lexical + local sparse semantic embeddings")
+    hr.add_argument("query"); hr.add_argument("--limit", type=int, default=10); hr.add_argument("--source-id"); hr.add_argument("--verified-only", action="store_true"); hr.add_argument("--status"); hr.add_argument("--claim-type"); hr.add_argument("--card-role"); hr.add_argument("--semantic-weight", type=float, default=0.35); hr.add_argument("--dim", type=int, default=2048); hr.add_argument("--semantic-only", action="store_true"); hr.add_argument("--include-semantic-only", action="store_true"); hr.add_argument("--json", action="store_true"); hr.set_defaults(func=cmd_hybrid_retrieve)
+    pt=sub.add_parser("parser-tournament", help="Compare local parser text-extraction modes on one PDF")
+    pt.add_argument("pdf"); pt.add_argument("--modes", default="pdftotext,pymupdf4llm,auto,reorder"); pt.add_argument("--timeout", type=int, default=240); pt.add_argument("--out"); pt.add_argument("--json", action="store_true"); pt.set_defaults(func=cmd_parser_tournament)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 

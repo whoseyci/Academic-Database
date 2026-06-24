@@ -265,3 +265,20 @@ Refresh location signals after review sessions if you want a durable signal tabl
 python rh2.py refresh-location-signals
 python rh2.py location-signals --source-id SOURCE_ID
 ```
+
+## Local embeddings and parser tournament
+
+The harness includes a no-cost local semantic layer based on transparent hashed sparse vectors. It is not a neural embedding model, but it gives a semantic-ish reranking signal without external dependencies:
+
+```bash
+python rh2.py build-embeddings --level source_cards
+python rh2.py hybrid-retrieve "trust policy stability" --include-semantic-only
+```
+
+Parser experiments can be run as a small tournament over local text-extraction modes:
+
+```bash
+python rh2.py parser-tournament paper.pdf --out reports/parser_tournament
+```
+
+Use this to decide whether a paper should be converted with the default pipeline, `pdftotext`, `auto`, or reading-order recovery.

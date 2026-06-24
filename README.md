@@ -269,6 +269,14 @@ python rh2.py refresh-location-signals
 python rh2.py export-review-ui --out reports/review_ui
 ```
 
+Build local embeddings / hybrid retrieval and compare parser modes:
+
+```bash
+python rh2.py build-embeddings --level source_cards
+python rh2.py hybrid-retrieve "trust policy stability" --include-semantic-only
+python rh2.py parser-tournament path/to/paper.pdf --out reports/parser_tournament
+```
+
 Audit a draft for claim traceability:
 
 ```bash
