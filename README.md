@@ -401,3 +401,33 @@ python rh2.py context CLAIM_ID --window 600
 for claims it intends to use centrally.
 
 Chapter profiles are documented in [`config/chapter_profiles/SCHEMA.md`](config/chapter_profiles/SCHEMA.md).
+
+## One-click Mac development setup
+
+For local collaborative development on macOS, use the one-click setup script. It creates a `.venv`, installs optional parser dependencies, starts the local interactive review cockpit, and watches GitHub for branch updates.
+
+```bash
+chmod +x scripts/mac_one_click_setup.command
+./scripts/mac_one_click_setup.command
+```
+
+Or double-click `scripts/mac_one_click_setup.command` in Finder.
+
+The review UI opens at:
+
+```text
+http://127.0.0.1:8765
+```
+
+Settings live in `.env` and are copied from `.env.example` on first run:
+
+```text
+RH_BRANCH=agent-harness-evidence-audit
+RH_REVIEW_HOST=127.0.0.1
+RH_REVIEW_PORT=8765
+RH_PULL_INTERVAL=30
+PDF2MD_INSTALL_PARSER=1
+PDF2MD_INSTALL_VISION=0
+```
+
+If another collaborator pushes to the configured branch, `scripts/dev_watch.sh` pulls the update and restarts the review UI automatically. Keep the terminal window open while working.
