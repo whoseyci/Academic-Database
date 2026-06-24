@@ -321,6 +321,43 @@ def init_db(quiet: bool=False) -> None:
     CREATE INDEX IF NOT EXISTS idx_scs_source ON source_card_suggestions(source_id);
     CREATE INDEX IF NOT EXISTS idx_scs_status ON source_card_suggestions(status);
     CREATE INDEX IF NOT EXISTS idx_scs_offsets ON source_card_suggestions(source_id, char_start, char_end);
+    CREATE TABLE IF NOT EXISTS source_location_signals (
+        signal_id TEXT PRIMARY KEY,
+        source_id TEXT NOT NULL,
+        char_start INTEGER,
+        char_end INTEGER,
+        signal_type TEXT,
+        polarity TEXT,
+        strength REAL,
+        originating_context_id TEXT,
+        originating_suggestion_id TEXT,
+        citing_source_id TEXT,
+        citation_function TEXT,
+        note TEXT,
+        created_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_sls_source_offsets ON source_location_signals(source_id, char_start, char_end);
+    CREATE INDEX IF NOT EXISTS idx_sls_type ON source_location_signals(signal_type, polarity);
+    CREATE TABLE IF NOT EXISTS synthesis_cards (
+        synthesis_id TEXT PRIMARY KEY,
+        title TEXT,
+        synthesis TEXT NOT NULL,
+        status TEXT,
+        topic TEXT,
+        scope_note TEXT,
+        created_at TEXT,
+        updated_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS synthesis_claims (
+        synthesis_id TEXT,
+        claim_id TEXT,
+        role TEXT,
+        note TEXT,
+        PRIMARY KEY(synthesis_id, claim_id),
+        FOREIGN KEY(synthesis_id) REFERENCES synthesis_cards(synthesis_id) ON DELETE CASCADE,
+        FOREIGN KEY(claim_id) REFERENCES source_cards(claim_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_synthesis_topic ON synthesis_cards(topic);
     CREATE TABLE IF NOT EXISTS query_cache (
         query_hash TEXT PRIMARY KEY,
         query TEXT,
@@ -4392,10 +4429,159 @@ def cmd_redteam_draft(args):
             print("Recommendations:"); [print(f"- {r}") for r in payload["recommendations"]]
 
 
+# ---------- source-location signals / synthesis cards / review UI ----------
+
+def insert_location_signal(cur: sqlite3.Cursor, *, source_id: str, char_start: int|None, char_end: int|None,
+                           signal_type: str, polarity: str, strength: float,
+                           originating_context_id: str="", originating_suggestion_id: str="",
+                           citing_source_id: str="", citation_function: str="", note: str="") -> str:
+    key="|".join(map(str,[source_id,char_start,char_end,signal_type,polarity,originating_context_id,originating_suggestion_id,citing_source_id,citation_function,note]))
+    signal_id=f"SIG-{sha1_short(key)[:14]}"
+    cur.execute("""INSERT OR REPLACE INTO source_location_signals
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        signal_id, source_id, char_start, char_end, signal_type, polarity, float(strength), originating_context_id, originating_suggestion_id, citing_source_id, citation_function, note, now()
+    ))
+    return signal_id
+
+
+def rebuild_source_location_signals(source_id: str|None=None) -> dict[str, Any]:
+    init_db(True)
+    conn=db(); cur=conn.cursor()
+    if source_id:
+        cur.execute("DELETE FROM source_location_signals WHERE source_id=?", (source_id,))
+    else:
+        cur.execute("DELETE FROM source_location_signals")
+    where="WHERE cls.char_start IS NOT NULL AND cls.char_end IS NOT NULL"
+    params=[]
+    if source_id:
+        where += " AND cls.source_id=?"; params.append(source_id)
+    rows=[dict(r) for r in cur.execute(f"""
+        SELECT cls.*, cc.citing_source_id, cc.citation_function
+        FROM citation_location_suggestions cls
+        LEFT JOIN citation_contexts cc ON cc.context_id=cls.context_id
+        {where}
+    """, params).fetchall()]
+    n=0
+    for r in rows:
+        st=r.get("status") or "candidate_location"
+        if st == "accepted": pol="positive"; strength=1.0
+        elif st == "weak_match": pol="weak"; strength=0.25
+        elif st == "rejected": pol="negative"; strength=-0.7
+        else: pol="candidate"; strength=0.15
+        insert_location_signal(cur, source_id=r["source_id"], char_start=r.get("char_start"), char_end=r.get("char_end"), signal_type=f"{st}_backtrack", polarity=pol, strength=strength, originating_context_id=r.get("context_id") or "", originating_suggestion_id=r.get("suggestion_id") or "", citing_source_id=r.get("citing_source_id") or "", citation_function=r.get("citation_function") or "", note="from citation_location_suggestions")
+        n += 1
+    q="SELECT * FROM source_card_suggestions WHERE char_start IS NOT NULL AND char_end IS NOT NULL AND status IN ('accepted','rejected')"
+    sc_params=[]
+    if source_id:
+        q += " AND source_id=?"; sc_params.append(source_id)
+    for r in [dict(x) for x in cur.execute(q, sc_params).fetchall()]:
+        pol="positive" if r.get("status") == "accepted" else "negative"
+        strength=1.1 if pol == "positive" else -0.8
+        insert_location_signal(cur, source_id=r["source_id"], char_start=r.get("char_start"), char_end=r.get("char_end"), signal_type=f"source_card_{r.get('status')}", polarity=pol, strength=strength, originating_suggestion_id=r.get("suggestion_id") or "", note=f"source-card suggestion {r.get('status')}")
+        n += 1
+    conn.commit(); conn.close(); return {"source_id": source_id or "all", "signals_written": n}
+
+
+def cmd_refresh_location_signals(args):
+    result=rebuild_source_location_signals(args.source_id)
+    if args.json: print_json(result)
+    else: print(f"Refreshed source-location signals for {result['source_id']}: {result['signals_written']}")
+
+
+def cmd_location_signals(args):
+    init_db(True); conn=db(); params=[]; where=[]
+    if args.source_id: where.append("source_id=?"); params.append(args.source_id)
+    if args.signal_type: where.append("signal_type=?"); params.append(args.signal_type)
+    if args.polarity: where.append("polarity=?"); params.append(args.polarity)
+    sql="SELECT * FROM source_location_signals" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY ABS(strength) DESC, created_at DESC LIMIT ?"
+    rows=[dict(r) for r in conn.execute(sql, (*params,args.limit)).fetchall()]
+    conn.close()
+    if args.json: print_json(rows)
+    else:
+        print(f"Location signals: {len(rows)}")
+        for r in rows:
+            print(f"- {r['signal_id']} {r['polarity']} {r['strength']} {r['signal_type']} {source_range_handle(r['source_id'], r['char_start'], r['char_end'])} ctx:{r.get('originating_context_id') or '-'}")
+
+
+def cmd_create_synthesis(args):
+    init_db(True)
+    claim_ids=[]
+    for x in args.claims: claim_ids.extend(split_list(x))
+    if not claim_ids: raise SystemExit("Provide at least one claim id with --claims")
+    conn=db(); cur=conn.cursor()
+    for cid in claim_ids:
+        if not cur.execute("SELECT 1 FROM source_cards WHERE claim_id=?", (cid,)).fetchone(): raise SystemExit(f"Unknown claim_id: {cid}")
+    sid=args.synthesis_id or f"SYN-{sha1_short(args.title + args.text + ''.join(claim_ids))[:12]}"
+    cur.execute("INSERT OR REPLACE INTO synthesis_cards VALUES (?,?,?,?,?,?,?,?)", (sid,args.title or sid,args.text,args.status,args.topic or "",args.scope_note or "",now(),now()))
+    for cid in claim_ids: cur.execute("INSERT OR REPLACE INTO synthesis_claims VALUES (?,?,?,?)", (sid,cid,args.role or "supports",args.note or ""))
+    conn.commit(); conn.close(); print(f"{sid}: {len(claim_ids)} claims")
+
+
+def synthesis_payload(synthesis_id: str) -> dict[str, Any]:
+    conn=db(); row=conn.execute("SELECT * FROM synthesis_cards WHERE synthesis_id=?", (synthesis_id,)).fetchone()
+    if not row: raise SystemExit(f"Unknown synthesis_id: {synthesis_id}")
+    links=[dict(r) for r in conn.execute("SELECT * FROM synthesis_claims WHERE synthesis_id=? ORDER BY claim_id", (synthesis_id,)).fetchall()]
+    cards=[]
+    for l in links:
+        r=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (l["claim_id"],)).fetchone()
+        if r: cards.append({**claim_card(r,"standard"), "synthesis_role": l.get("role"), "synthesis_note": l.get("note")})
+    conn.close(); return {"synthesis":dict(row),"claims":cards}
+
+
+def cmd_synthesis_cards(args):
+    init_db(True); conn=db(); params=[]; where=[]
+    if args.topic: where.append("topic LIKE ?"); params.append(f"%{args.topic}%")
+    if args.status: where.append("status=?"); params.append(args.status)
+    rows=[dict(r) for r in conn.execute("SELECT * FROM synthesis_cards" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY updated_at DESC LIMIT ?", (*params,args.limit)).fetchall()]
+    conn.close()
+    if args.json: print_json({"count":len(rows),"items":rows})
+    else:
+        print(f"Synthesis cards: {len(rows)}")
+        for r in rows: print(f"- {r['synthesis_id']} [{r['status']}] {r.get('topic') or '-'} {r['title']}: {short(r['synthesis'],180)}")
+
+
+def cmd_synthesis_brief(args):
+    payload=synthesis_payload(args.synthesis_id)
+    if args.json: print_json(payload); return
+    syn=payload["synthesis"]
+    print(f"# Synthesis: {syn['title']}")
+    print(f"Status: {syn['status']} | Topic: {syn.get('topic') or '-'}")
+    if syn.get("scope_note"): print(f"Scope: {syn['scope_note']}")
+    print("\n## Synthesis")
+    print(syn["synthesis"])
+    print("\n## Supporting source cards")
+    for c in payload["claims"]:
+        print(f"- **{c['claim_id']}** grade:{c.get('evidence_grade')} {c['citation_hint']} p.{c.get('page') or '?'} · {c['status']} · {c.get('card_role')} · {c.get('claim_type')}")
+        print(f"  - Claim: {c.get('claim')}")
+        if c.get("evidence"): print(f"  - Evidence: {short(c.get('evidence'),260)}")
+
+
+def cmd_export_review_ui(args):
+    init_db(True); out_dir=Path(args.out); out_dir.mkdir(parents=True, exist_ok=True); data_dir=out_dir / "data"; data_dir.mkdir(exist_ok=True)
+    conn=db(); usage=brief_usage_counts(); loc_usage=claim_usage_from_citation_locations(); queue=[]
+    for r in conn.execute("SELECT * FROM source_cards WHERE verification_status!='rejected' ORDER BY updated_at DESC LIMIT ?", (args.limit,)).fetchall():
+        card=claim_card(r,"standard"); cid=card["claim_id"]
+        rel_count=conn.execute("SELECT COUNT(*) FROM claim_relations WHERE claim_a=? OR claim_b=?", (cid,cid)).fetchone()[0]
+        queue.append({**card,"centrality_score":centrality_score(card,loc_usage.get(cid,{}),usage.get(cid,0),rel_count),"brief_count":usage.get(cid,0),"relation_count":rel_count})
+    scs=[dict(r) for r in conn.execute("SELECT * FROM source_card_suggestions ORDER BY score DESC LIMIT ?", (args.limit,)).fetchall()]
+    cls=[dict(r) for r in conn.execute("SELECT * FROM citation_location_suggestions ORDER BY score DESC LIMIT ?", (args.limit,)).fetchall()]
+    synth=[dict(r) for r in conn.execute("SELECT * FROM synthesis_cards ORDER BY updated_at DESC LIMIT ?", (args.limit,)).fetchall()]
+    stats={}
+    for t in ["sources","source_cards","source_card_suggestions","citation_contexts","citation_location_suggestions","synthesis_cards","review_events"]:
+        try: stats[t]=conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        except Exception: stats[t]=0
+    conn.close()
+    payload={"generated_at":now(),"stats":stats,"review_queue":sorted(queue,key=lambda x:x.get("centrality_score",0),reverse=True)[:args.limit],"source_card_suggestions":scs,"citation_location_suggestions":cls,"synthesis_cards":synth}
+    (data_dir / "review_export.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    html="""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Review Cockpit</title><style>body{font-family:system-ui;margin:0;background:#111;color:#eee}header{padding:20px;border-bottom:1px solid #333}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;padding:16px}.card{grid-column:span 12;background:#1b1b1b;border:1px solid #333;border-radius:14px;padding:14px}.third{grid-column:span 4}.item{border-top:1px solid #333;padding:10px 0}.muted{color:#aaa}.chip{display:inline-block;border:1px solid #444;border-radius:999px;padding:2px 8px;margin:2px;font-size:12px}.cmd{font-family:ui-monospace,monospace;background:#0b0b0b;padding:6px;border-radius:6px;display:inline-block}</style></head><body><header><h1>Review Cockpit</h1><p class='muted'>Static triage view. Copy commands into your shell to mutate the DB.</p></header><main id='app'></main><script>fetch('data/review_export.json').then(r=>r.json()).then(d=>{const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));const item=c=>`<div class=item><b>${esc(c.claim_id||c.suggestion_id||c.synthesis_id)}</b> ${c.evidence_grade?`<span class=chip>grade ${esc(c.evidence_grade)}</span>`:''} ${c.status?`<span class=chip>${esc(c.status)}</span>`:''}<p>${esc(c.claim||c.text||c.synthesis||c.matched_text||'')}</p>${c.claim_id?`<span class=cmd>python rh2.py review-packet ${esc(c.claim_id)}</span>`:''}</div>`;app.innerHTML=`<div class=grid><section class='card third'><h2>Stats</h2>${Object.entries(d.stats).map(([k,v])=>`<p>${k}: <b>${v}</b></p>`).join('')}</section><section class='card'><h2>High-value review queue</h2>${d.review_queue.map(item).join('')}</section><section class='card'><h2>Source-card suggestions</h2>${d.source_card_suggestions.map(item).join('')}</section><section class='card'><h2>Citation-location suggestions</h2>${d.citation_location_suggestions.map(item).join('')}</section><section class='card'><h2>Synthesis cards</h2>${d.synthesis_cards.map(item).join('')}</section></div>`})</script></body></html>"""
+    (out_dir / "review.html").write_text(html, encoding="utf-8")
+    print(f"Wrote {out_dir/'review.html'} and {data_dir/'review_export.json'}")
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
-    tables=["sources","spans","source_cards","source_card_suggestions","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
+    tables=["sources","spans","source_cards","source_card_suggestions","source_location_signals","synthesis_cards","synthesis_claims","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
     stats={}
     for t in tables:
         try: stats[t]=cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -4532,6 +4718,18 @@ def main():
     cn.add_argument("--source-id"); cn.add_argument("--limit", type=int, default=500); cn.add_argument("--json", action="store_true"); cn.set_defaults(func=cmd_claim_network)
     rtd=sub.add_parser("redteam-draft", help="Stronger draft audit: unsupported claims, weak evidence, overclaiming and source diversity")
     rtd.add_argument("path"); rtd.add_argument("--min-words", type=int, default=14); rtd.add_argument("--show-uncited", type=int, default=25); rtd.add_argument("--min-claims-for-source-warning", type=int, default=3); rtd.add_argument("--limit", type=int, default=80); rtd.add_argument("--json", action="store_true"); rtd.set_defaults(func=cmd_redteam_draft)
+    rls=sub.add_parser("refresh-location-signals", help="Rebuild unified source-location signal table from reviews/backtracks")
+    rls.add_argument("--source-id"); rls.add_argument("--json", action="store_true"); rls.set_defaults(func=cmd_refresh_location_signals)
+    lsg=sub.add_parser("location-signals", help="List source-location learning/review signals")
+    lsg.add_argument("--source-id"); lsg.add_argument("--signal-type"); lsg.add_argument("--polarity"); lsg.add_argument("--limit", type=int, default=80); lsg.add_argument("--json", action="store_true"); lsg.set_defaults(func=cmd_location_signals)
+    syn=sub.add_parser("create-synthesis", help="Create/update a thesis synthesis card backed by source cards")
+    syn.add_argument("--synthesis-id"); syn.add_argument("--title", default=""); syn.add_argument("--text", required=True); syn.add_argument("--claims", action="append", required=True); syn.add_argument("--topic", default=""); syn.add_argument("--scope-note", default=""); syn.add_argument("--status", choices=sorted(STATUSES), default="candidate_needs_review"); syn.add_argument("--role", default="supports"); syn.add_argument("--note", default=""); syn.set_defaults(func=cmd_create_synthesis)
+    syns=sub.add_parser("synthesis-cards", help="List synthesis cards")
+    syns.add_argument("--topic"); syns.add_argument("--status"); syns.add_argument("--limit", type=int, default=50); syns.add_argument("--json", action="store_true"); syns.set_defaults(func=cmd_synthesis_cards)
+    synb=sub.add_parser("synthesis-brief", help="Render one synthesis card with supporting source cards")
+    synb.add_argument("synthesis_id"); synb.add_argument("--json", action="store_true"); synb.set_defaults(func=cmd_synthesis_brief)
+    rui=sub.add_parser("export-review-ui", help="Export a static local review cockpit")
+    rui.add_argument("--out", default="reports/review_ui"); rui.add_argument("--limit", type=int, default=120); rui.set_defaults(func=cmd_export_review_ui)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 

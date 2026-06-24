@@ -259,6 +259,16 @@ python rh2.py claim-network --json > claim_network.json
 python rh2.py redteam-draft chapter.md
 ```
 
+Create reviewed synthesis cards and export a local review cockpit:
+
+```bash
+python rh2.py create-synthesis --title "Trust and policy stability" --text "..." --claims CLM-... --topic trust
+python rh2.py synthesis-cards --topic trust
+python rh2.py synthesis-brief SYN-...
+python rh2.py refresh-location-signals
+python rh2.py export-review-ui --out reports/review_ui
+```
+
 Audit a draft for claim traceability:
 
 ```bash

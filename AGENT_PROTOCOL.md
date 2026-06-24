@@ -237,3 +237,31 @@ python rh2.py redteam-draft chapter.md
 ```
 
 `audit-draft` checks traceability. `redteam-draft` is stricter: it flags non-verified claim use, weak evidence grades, missing pages, source over-dependence, uncited substantive sentences, and strong unsupported wording.
+
+## Synthesis and review cockpit
+
+Source cards are source-level evidence. Synthesis cards are thesis-level interpretations explicitly backed by source cards:
+
+```bash
+python rh2.py create-synthesis --title "Trust and policy stability" \
+  --text "..." \
+  --claims CLM-... --claims CLM-... \
+  --topic "institutional trust"
+python rh2.py synthesis-cards --topic trust
+python rh2.py synthesis-brief SYN-...
+```
+
+For review sessions, export a static local cockpit:
+
+```bash
+python rh2.py export-review-ui --out reports/review_ui
+```
+
+This writes `review.html` plus `data/review_export.json`; it is a read-only triage dashboard with copyable mutation commands.
+
+Refresh location signals after review sessions if you want a durable signal table derived from citation-location/source-card reviews:
+
+```bash
+python rh2.py refresh-location-signals
+python rh2.py location-signals --source-id SOURCE_ID
+```
