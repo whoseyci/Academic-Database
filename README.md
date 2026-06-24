@@ -439,6 +439,25 @@ PDF2MD_INSTALL_VISION=0
 
 If another collaborator pushes to the configured branch, `scripts/dev_watch.sh` pulls the update and restarts the review UI automatically. Keep the terminal window open while working.
 
+### Electron desktop shell
+
+For a real app window with an in-app update banner:
+
+```bash
+cd desktop/electron
+npm install
+npm start
+```
+
+Build a local macOS app directory/package:
+
+```bash
+cd desktop/electron
+npm run build
+```
+
+The Electron shell starts the local Python `review-ui`, opens it in an app window, checks `origin/main` for updates, and shows a **Restart to install** banner when a newer commit is available. It still uses your local repo checkout for the SQLite DB, parser outputs, blobs, and `.venv`.
+
 ### Optional Mac app wrapper
 
 If you prefer a clickable app bundle, build and install the local launcher:

@@ -1,0 +1,33 @@
+{
+  "name": "academic-database-desktop",
+  "version": "0.1.0",
+  "description": "Electron shell for the Academic Database local review cockpit",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "node prepare-build.js && electron-builder --mac --dir",
+    "dist": "node prepare-build.js && electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "ai.arena.academic-database",
+    "productName": "Academic Database",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "repo-path.json",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dir", "dmg"]
+    }
+  }
+}
