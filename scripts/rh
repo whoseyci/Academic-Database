@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  exec "$ROOT/.venv/bin/python" rh2.py "$@"
+fi
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 rh2.py "$@"
+fi
+echo "ERROR: python3 not found. Install Python 3 first." >&2
+exit 1

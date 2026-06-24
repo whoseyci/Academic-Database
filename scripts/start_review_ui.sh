@@ -38,13 +38,31 @@ echo "$PID" > "$PIDFILE"
 echo "review-ui pid=$PID"
 echo "logs: $LOGFILE"
 
-# Wait briefly for server startup.
+# Wait briefly for server startup and fail loudly if it crashed.
 sleep 1
+if ! kill -0 "$PID" 2>/dev/null; then
+  echo "ERROR: review UI failed to stay running. Last log lines:" >&2
+  tail -80 "$LOGFILE" >&2 || true
+  exit 1
+fi
+
+open_review_url() {
+  local url="$1"
+  if [[ "${RH_APP_WINDOW:-1}" == "1" ]] && command -v open >/dev/null 2>&1; then
+    if [[ -d "/Applications/Google Chrome.app" ]]; then
+      open -na "Google Chrome" --args --app="$url" >/dev/null 2>&1 && return 0
+    fi
+    if [[ -d "/Applications/Microsoft Edge.app" ]]; then
+      open -na "Microsoft Edge" --args --app="$url" >/dev/null 2>&1 && return 0
+    fi
+  fi
+  if command -v open >/dev/null 2>&1; then
+    open "$url" || true
+  else
+    echo "Open $url"
+  fi
+}
 
 if [[ "${OPEN_BROWSER:-0}" == "1" ]]; then
-  if command -v open >/dev/null 2>&1; then
-    open "http://$HOST:$PORT" || true
-  else
-    echo "Open http://$HOST:$PORT"
-  fi
+  open_review_url "http://$HOST:$PORT"
 fi

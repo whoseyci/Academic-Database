@@ -78,6 +78,9 @@ if [[ ! -d .venv ]]; then
 fi
 
 PY="\$REPO_DIR/.venv/bin/python"
+if [[ ! -x "\$PY" ]]; then
+  PY="$(command -v python3)"
+fi
 "\$PY" -m pip install --upgrade pip wheel setuptools >/dev/null 2>&1 || true
 
 # Install parser deps once, or whenever requirements-parser.txt is newer than stamp.
@@ -101,7 +104,18 @@ fi
 RH_REVIEW_HOST="\$HOST" RH_REVIEW_PORT="\$PORT" OPEN_BROWSER=0 scripts/start_review_ui.sh || true
 
 sleep 1
-open "\$URL" || true
+if ! curl -fsS "\$URL" >/dev/null 2>&1; then
+  notify "Review UI failed to start — opening logs"
+  open "reports/review_ui_server.log" || true
+  exit 1
+fi
+if [[ -d "/Applications/Google Chrome.app" ]]; then
+  open -na "Google Chrome" --args --app="\$URL" || open "\$URL" || true
+elif [[ -d "/Applications/Microsoft Edge.app" ]]; then
+  open -na "Microsoft Edge" --args --app="\$URL" || open "\$URL" || true
+else
+  open "\$URL" || true
+fi
 notify "Review UI ready at \$URL"
 LAUNCHER
 

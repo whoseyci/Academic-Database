@@ -419,6 +419,13 @@ The review UI opens at:
 http://127.0.0.1:8765
 ```
 
+On macOS, use `python3` unless you are inside the virtual environment. The helper below always picks `.venv/bin/python` when available and otherwise falls back to `python3`:
+
+```bash
+./scripts/rh stats
+./scripts/rh review-ui
+```
+
 Settings live in `.env` and are copied from `.env.example` on first run:
 
 ```text
@@ -450,7 +457,7 @@ Launching the app will:
 
 1. pull the configured branch when the working tree is clean;
 2. create/update `.venv` if needed;
-3. start/restart `python rh2.py review-ui`;
-4. open the review cockpit in your browser.
+3. start/restart `python3/.venv` running `rh2.py review-ui`;
+4. open the review cockpit. If Chrome or Edge is installed it opens as an app-style window; otherwise it falls back to your default browser.
 
 The app is a lightweight wrapper around this local repo, so your SQLite DB and parser artifacts stay on your Mac.
