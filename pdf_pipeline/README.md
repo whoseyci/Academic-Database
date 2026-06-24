@@ -5,8 +5,6 @@ with figure handling that doesn't hallucinate.
 
 ## What it does
 
-For each PDF the pipeline writes `paper.md` plus structured sidecars. The most important integration artifact for the research harness is `paper.parse.json`, whose character offsets point into the final Markdown and describe pages, sections, paragraphs, references, citations, tables, and figures.
-
 For each PDF:
 
 1. **Text** — `convert.py` uses `pymupdf4llm` for the main extraction,
@@ -44,25 +42,170 @@ sandbox — see `output/OPTIMIZATION_NOTES.md` sections (h) through
 ## Quick start
 
 ```bash
-# 1. Convert one PDF
-python3 -m pdf_pipeline.convert path/to/paper.pdf
+# 1. Convert one PDF (fast path)
+python3 -m pipeline_v2.convert path/to/paper.pdf
 
-# 2. Validate the output contract for the harness
-python3 -m pdf_pipeline.validate /path/to/output/paper-slug
+# 2. Convert with all optional enrichment passes
+python3 -m pipeline_v2.convert path/to/paper.pdf \
+    --enrich-refs    # augment refs with refextract structured fields
+    --verify-refs    # cross-check refs against Crossref + OpenAlex
+    --docling        # also emit paper.docling.json (RAG-ready)
 
 # 3. Batch over a directory
-python3 -m pdf_pipeline.batch /path/to/pdfs --output /path/to/output
+python3 -m pipeline_v2.batch /path/to/pdfs --output /path/to/output
 
-# 3. Run the figure-vision pass over already-converted papers
-python3 -m pdf_pipeline.vision.run_all \
+# 4. Run the figure-vision pass over already-converted papers
+python3 -m pipeline_v2.vision.run_all \
     --output-dir /path/to/output \
     --model gemma4-e2b \
     --paper my-paper
 
-# 4. Debug a single figure
+# 5. Debug a single figure
 python3 -m pipeline_v2.vision.chart_extract.cli \
     path/to/figure.png --kind bar_chart \
     --debug-overlay overlay.png
+```
+
+## What's in the box
+
+This is a multi-track pipeline that fuses the best ideas from
+several state-of-the-art PDF→MD projects:
+
+* **Text & layout**: `pymupdf4llm` base + custom postprocessing for
+  ligatures, soft hyphens, column flow, MDPI sidebars, journal-layout
+  detection.
+* **References**:
+  * Our own regex parser (`references_v2.py`) for in-text citation linking
+  * `--enrich-refs` adds structured DOI/journal/year via
+    `inspirehep/refextract` (`refextract_bridge.py`)
+  * `--verify-refs` cross-checks against Crossref + OpenAlex
+    (`ref_verifier.py`, inspired by markrussinovich/refchecker) to
+    flag fabricated or garbled citations
+* **Figures** -- four complementary tracks:
+  * `chart_extract/` -- classical (OpenCV + tesseract) geometric
+    extraction. Real markdown tables with real numbers, no hallucination.
+    Bench: 0.5 s/chart, mean abs err ≤ 0.1 on simple bar charts.
+  * `chart_extract/deplot.py` -- Google's `google/deplot` specialist
+    model **now default-enabled** as a fallback cascade for all chart
+    kinds. Geometric extractor tries first (~0.5 s); DePlot only runs
+    when geometric returns PARTIAL or UNSUPPORTED (40-110 s/figure on
+    CPU, peak 1.45 GB RAM). Disable by setting `PDF2MD_DISABLE_DEPLOT=1`.
+  * `diagram_extract.py` -- **classical (non-LLM) shape-aware** diagram
+    → Mermaid extractor for clean machine-rendered conceptual diagrams
+    (TPB, causal loops, decision trees, draw.io exports). 0.8 s/figure.
+    Classifies each node as `rect` / `rounded` / `circle` / `diamond` /
+    `parallelogram` and emits the correct Mermaid shape syntax
+    (`A[label]`, `A((label))`, `A{label}`, etc.). Tries this FIRST in
+    the runner before falling back to the VLM.
+  * `mermaid_extract.py` -- VLM-based diagram → Mermaid via Gemma 4 E2B.
+    Fallback for hand-drawn / irregular / overlapping diagrams that
+    the classical extractor can't handle. ~16 min/figure on CPU.
+  * `figure_prompts.py` -- marker-style per-subtype VLM prompts for
+    algorithms, code listings, equations, screenshots, gels/blots
+* **Output schema**:
+  * `paper.md` -- the headline output
+  * `paper.json` -- our own schema (everything we extracted)
+  * `paper.docling.json` (optional, `--docling`) -- DoclingDocument-
+    compatible schema, drop-in for LlamaIndex/LangChain RAG pipelines
+* **Selective LLM dispatch** (`llm_boost.py`): marker `--use_llm`
+  pattern. Per-block decision (`skip`/`validate`/`replace`/`extract`)
+  based on classical-extractor confidence so LLM budget only burns
+  on blocks that need it.
+
+## Eval harness (`eval_harness/`)
+
+Three honest evaluations of how this pipeline actually performs:
+
+1. **Ground-truth corpus + WER bench** — downloads 10 arXiv papers
+   (Attention, BERT, ViT, ResNet, GAN, VAE, …), grabs their LaTeX
+   source as ground truth, runs five extractors (pdftotext,
+   pdftotext-stream, pymupdf4llm, our pipeline post-process, our
+   E1 reading-order) and reports F1 / WER\* / runtime side-by-side.
+   See `eval_harness/REPORT.md`.
+2. **Static corpus browser** — `pipeline_v2/corpus_browser.py` emits
+   a single self-contained `output/index.html` that lets you browse
+   every processed paper with rendered markdown, figures gallery,
+   reference table with DOI badges.
+3. **Failure-mode catalog** — `eval_harness/failure_modes.py`
+   synthesises 10 deliberately broken PDFs (encrypted, image-only,
+   rotated, mid-word-break, garbage bytes, …) and probes which
+   pipeline stage tolerated each. See `eval_harness/FAILURE_REPORT.md`.
+
+```bash
+python3 -m eval_harness.fetch_arxiv       # one-time download
+python3 -m eval_harness.run_eval          # → REPORT.md / REPORT.json
+python3 -m eval_harness.failure_modes     # → FAILURE_REPORT.md
+python3 -m pipeline_v2.corpus_browser     # → output/index.html
+```
+
+**Numbers (June 2026, 16 arXiv papers + 2 synthetic scanned PDFs):**
+
+| Extractor | avg F1 | avg WER\* | avg s |
+|-----------|--------|-----------|-------|
+| pdftotext             | 0.706 | 0.153 | 0.07 |
+| pdftotext-stream      | 0.727 | 0.149 | 0.07 |
+| pymupdf4llm           | 0.821 | 0.080 | 14.8 |
+| pdf2md-postprocess    | 0.821 | 0.080 | 14.3 |
+| pdf2md-reorder-e1     | 0.729 | 0.148 | 0.10 |
+| **pdf2md-auto** ⭐    | **0.821** | **0.077** | **3.0** |
+| pdf2md-auto-rotfix    | 0.821 | 0.077 | 16.3 |
+
+* **`pdf2md-auto` (the new default) matches pymupdf4llm quality at
+  ~5× the speed** — uses pdftotext per page, falls back to
+  pymupdf4llm only when a page has < 100 chars.
+* **On scanned PDFs**: pdftotext alone returns F1=0.000;
+  `pdf2md-auto` correctly routes to pymupdf4llm OCR and recovers
+  F1=0.78. The fallback path is now actively exercised by the
+  harness (synthetic scanned versions of 2 of the arXiv papers).
+* E1 reading-order was previously worse than baseline — that turned
+  out to be **two bugs**: our metric didn't expand Unicode
+  ligatures (`ﬁ` → `fi`), penalising any extractor that preserved
+  the glyph; and E1 itself didn't dehyphenate line-end breaks.
+  Both fixed; E1 now matches `pdftotext-stream` (and runs at the
+  same speed).
+
+## New text-extraction CLI
+
+```bash
+# Smart dispatcher (now the recommended default for text-only use)
+python3 -m pipeline_v2.text_extract paper.pdf
+python3 -m pipeline_v2.text_extract paper.pdf --mode auto --stats
+python3 -m pipeline_v2.text_extract paper.pdf --mode reorder    # E1
+python3 -m pipeline_v2.text_extract paper.pdf --mode pdftotext  # fastest
+
+# Rotation detection / correction
+python3 -m pipeline_v2.rotation_fix paper.pdf
+python3 -m pipeline_v2.rotation_fix paper.pdf --apply --out fixed.pdf
+```
+
+Note: `pipeline_v2/convert.py` (the full pipeline) still uses
+`pymupdf4llm` end-to-end because it needs per-page chunks with
+inline figure extraction. The smart dispatcher is best used when you
+just want text (e.g. for indexing / RAG / search).
+
+## Research-track features (E1–E9, all shipped)
+
+All 9 experiments proposed in `RESEARCH_DIRECTIONS.md` are now
+implemented. See that file for design notes; the modules below ship
+the actual code.
+
+| ID | Module | One-liner |
+|----|--------|-----------|
+| E1 | `pipeline_v2/reading_order.py` | Multi-column reading-order recovery (1/2/3-col detection + column-then-y walk + banner re-insertion) — alternative to VILA, zero new deps |
+| E2 | `pipeline_v2/gemma_ocr.py` | Low-confidence-page re-OCR via the **already-loaded Gemma 4** backend (no new model). Opt-out via `PDF2MD_DISABLE_GEMMA_OCR=1` |
+| E3 | `pipeline_v2/caption_pairing.py` | PDFigCapX-style figure↔caption pairing via negative-space matching. Corpus run: **90.6 % captions paired** (367/405 across 33 papers) |
+| E4 | `pipeline_v2/vision/diagram_extract.py` | Triangle/PCA-based arrow direction detector. Synthetic 10-case bench: **100 % (18/18)** vs prior baseline ~50 % |
+| E5 | `pipeline_v2/vision/equation_extract.py` | pix2tex equation→LaTeX wrapper, emits `$$…$$` markdown; opt-in (`pip install pix2tex`) |
+| E6 | `pipeline_v2/figure_refs.py` | Links body-text "Figure N" / "Fig. N" / "Figs 3-5" mentions back to figure records (`fig.referenced_in[]`). Corpus run: 213 mentions linked |
+| E7 | `pipeline_v2/dashboard.py` | Auto-generated `output/QUALITY_DASHBOARD.md` per-paper + corpus aggregates + worst-N list |
+| E8 | `pipeline_v2/vision/chart_extract/{stacked_bars,box_plot,pie_chart,scatter_plot,line_plot}.py` | Full geometric extractors (no DePlot fallback needed on clean inputs). Synthetic bench: pie 40/30/20/10 → 40.2/29.9/19.9/10.0; stacked 4×3 matrix recovered; line+scatter+box ok |
+| E9 | `pipeline_v2/corpus_benchmark.py` | Honest corpus-level benchmark; runs E3+E6+E7 over all 35 papers and emits `output/CORPUS_BENCHMARK.md` + `.json` |
+
+Run them all over the existing corpus:
+
+```bash
+python3 -m pipeline_v2.corpus_benchmark --link-figures --pair-captions
+# wrote output/CORPUS_BENCHMARK.md and output/CORPUS_BENCHMARK.json
 ```
 
 ## Gemma 4 E2B setup (one-time)
@@ -109,7 +252,7 @@ export GEMMA4_MMPROJ=/path/to/mmproj-F16.gguf
 pipeline_v2/
 ├── batch.py              # multi-PDF runner
 ├── build_index.py        # builds output/README.md master index
-├── convert.py            # single-PDF orchestrator
+├── convert.py            # single-PDF orchestrator (+ --enrich-refs, --verify-refs, --docling)
 ├── diag2.py              # quality-diagnostics helper
 ├── figures.py            # image extraction + caption pairing + OCR
 ├── first_page_layout.py  # journal-layout detectors
@@ -118,15 +261,21 @@ pipeline_v2/
 ├── postprocess_md.py     # heavy markdown cleanup
 ├── references_v2.py      # bibliography + inline-citation linking
 ├── tables_v2.py          # junk-table filter
+├── refextract_bridge.py  # NEW: inspirehep/refextract integration
+├── ref_verifier.py       # NEW: Crossref/OpenAlex verifier (refchecker-style)
+├── docling_export.py     # NEW: DoclingDocument-compatible JSON output
+├── llm_boost.py          # NEW: marker-style selective LLM dispatcher
 └── vision/
     ├── base.py              # VisionModel ABC, FigureKind enum
     ├── classifier.py        # caption → FigureKind
     ├── factory.py           # make_model("gemma4-e2b" | "stub")
     ├── prompts.py           # per-kind prompt templates
+    ├── figure_prompts.py    # NEW: marker-style per-subtype prompts
     ├── validators.py        # output post-processing
     ├── runner.py            # process_figure() — orchestrates everything
     ├── run_all.py           # CLI: batch over a paper
-    ├── mermaid_extract.py   # diagram → ```mermaid block (Gemma 4)
+    ├── diagram_extract.py   # NEW: classical (non-LLM) diagram → mermaid
+    ├── mermaid_extract.py   # VLM-based diagram → mermaid (Gemma 4)
     ├── MERMAID_DEMO.md      # walked-through example
     ├── README.md
     ├── backends/
@@ -139,12 +288,27 @@ pipeline_v2/
         ├── legend_ocr.py        # legend swatch ↔ label mapping
         ├── panel_split.py       # multi-panel grid detector
         ├── multipanel.py        # MultiPanelExtractor wrapper
+        ├── multi_extractor.py   # NEW: CascadingExtractor (geometric + DePlot)
         ├── simple_bars.py       # bar-chart extractor (full impl)
         ├── stubs.py             # placeholders for stacked/box/pie/scatter/line
+        ├── deplot.py            # NEW: Google DePlot integration (transformers)
+        ├── deplot_subprocess.py # NEW: subprocess-isolated DePlot
         ├── registry.py          # FigureKind → ChartExtractor
         ├── validator.py         # VLM-as-validator (OK/FLAG verdict)
         └── cli.py               # debug CLI for one figure
 ```
+
+### Optional dependencies
+
+- **`refextract`** + **`poppler-utils`** (for `--enrich-refs`)
+- **`docling_core`** (for `--docling` validation; ~1 MB)
+- **`transformers`** + **`torch`** + **`google/deplot`** model
+  (for DePlot chart extraction; ~1.1 GB model)
+- **`llama.cpp`** built from source + Gemma 4 E2B GGUF
+  (for the VLM tracks: diagram→mermaid, alt-text, validator)
+
+All optional — base pipeline works with just `pymupdf4llm`,
+`pdfplumber`, `pytesseract`, `Pillow`, `opencv-python-headless`.
 
 The complete geometric extractors for stacked-bars, box-plot, pie,
 scatter, and line are documented in `output/OPTIMIZATION_NOTES.md`

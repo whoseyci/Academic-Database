@@ -386,6 +386,7 @@ def _strip_redundant_keywords_line(body: str) -> str:
     return out
 
 
+
 VISIBLE_PAGE_RE = re.compile(r"(?m)^\*— Page (\d+) of (\d+) —\*\s*$")
 HEADING_RE = re.compile(r"(?m)^(#{1,6})\s+(.+?)\s*$")
 REF_ANCHOR_RE = re.compile(r"<a id=\"([^\"]+)\"></a>")
@@ -431,7 +432,6 @@ def build_parse_map(final_md: str, pdf_path: Path, slug: str, meta: dict, refere
     This deliberately maps offsets into paper.md, not the raw PDF text. The Academic-Database
     harness can ingest this through `rh2.py ingest --parse-map paper.parse.json`.
     """
-    # Pages from visible page markers. Page span starts at marker and ends before next marker.
     markers=list(VISIBLE_PAGE_RE.finditer(final_md))
     pages=[]
     if markers:
@@ -439,95 +439,48 @@ def build_parse_map(final_md: str, pdf_path: Path, slug: str, meta: dict, refere
             start=m.start(); end=markers[i+1].start() if i+1 < len(markers) else len(final_md)
             pages.append({'page': m.group(1), 'char_start': start, 'char_end': end})
     else:
-        pages=[{'page': str(i+1), 'char_start': 0 if i==0 else None, 'char_end': len(final_md) if i==0 else None} for i in range(max(1,n_pages))]
-        pages=[p for p in pages if p['char_start'] is not None]
-
-    # Sections from markdown headings.
+        pages=[{'page': '1', 'char_start': 0, 'char_end': len(final_md)}]
     hmatches=list(HEADING_RE.finditer(final_md))
     sections=[]
     for i,m in enumerate(hmatches):
         level=len(m.group(1)); heading=m.group(2).strip().strip('*').strip()
         start=m.start(); end=hmatches[i+1].start() if i+1 < len(hmatches) else len(final_md)
-        sections.append({
-            'section_id': f'sec-{i+1:04d}', 'heading': heading, 'level': level,
-            'section_role': role_for_heading(heading),
-            'char_start': start, 'char_end': end,
-            'page_start': page_for_offset(pages, start), 'page_end': page_for_offset(pages, max(start,end-1)),
-        })
-
+        sections.append({'section_id': f'sec-{i+1:04d}', 'heading': heading, 'level': level, 'section_role': role_for_heading(heading), 'char_start': start, 'char_end': end, 'page_start': page_for_offset(pages,start), 'page_end': page_for_offset(pages,max(start,end-1))})
     def section_id_for(pos):
-        best=''
         for sec in sections:
             if sec['char_start'] <= pos < sec['char_end']:
-                best=sec['section_id']; break
-        return best
-
-    # Paragraph blocks.
+                return sec['section_id']
+        return ''
     paragraphs=[]
-    for i,m in enumerate(re.finditer(r"\S[\s\S]*?(?=\n\s*\n|\Z)", final_md), 1):
+    for m in re.finditer(r"\S[\s\S]*?(?=\n\s*\n|\Z)", final_md):
         block=m.group(0).strip()
-        if not block or HEADING_RE.match(block) or VISIBLE_PAGE_RE.match(block):
-            continue
-        paragraphs.append({
-            'paragraph_id': f'p-{len(paragraphs)+1:05d}', 'section_id': section_id_for(m.start()),
-            'char_start': m.start(), 'char_end': m.end(),
-            'page_start': page_for_offset(pages, m.start()), 'page_end': page_for_offset(pages, max(m.start(),m.end()-1)),
-        })
-
-    # References: locate rendered anchors.
+        if not block or HEADING_RE.match(block) or VISIBLE_PAGE_RE.match(block): continue
+        paragraphs.append({'paragraph_id': f'p-{len(paragraphs)+1:05d}', 'section_id': section_id_for(m.start()), 'char_start': m.start(), 'char_end': m.end(), 'page_start': page_for_offset(pages,m.start()), 'page_end': page_for_offset(pages,max(m.start(),m.end()-1))})
     ref_by_id={r.get('id'):r for r in references}
     ref_items=[]
     anchors=list(REF_ANCHOR_RE.finditer(final_md))
     for i,m in enumerate(anchors):
         rid=m.group(1); line_start=final_md.rfind('\n',0,m.start())+1
-        next_line=final_md.find('\n', m.end())
-        end=next_line if next_line >= 0 else (anchors[i+1].start() if i+1 < len(anchors) else len(final_md))
+        next_line=final_md.find('\n',m.end())
+        end=next_line if next_line>=0 else (anchors[i+1].start() if i+1<len(anchors) else len(final_md))
         r=ref_by_id.get(rid,{})
-        ref_items.append({
-            'reference_id': rid, 'raw_text': r.get('text') or final_md[line_start:end].strip(),
-            'doi': r.get('doi',''), 'authors': r.get('authors',[]), 'year': r.get('year',''), 'title': r.get('title',''),
-            'char_start': line_start, 'char_end': end,
-        })
-
-    # Linked citations.
+        ref_items.append({'reference_id': rid, 'raw_text': r.get('text') or final_md[line_start:end].strip(), 'doi': r.get('doi',''), 'authors': r.get('authors',[]), 'year': r.get('year',''), 'title': r.get('title',''), 'char_start': line_start, 'char_end': end})
     citations=[]
     for i,m in enumerate(MD_LINK_CITATION_RE.finditer(final_md),1):
         start=m.start(); end=m.end(); ctx_start=final_md.rfind('.',0,start)
-        ctx_start=final_md.rfind('\n',0,start) if ctx_start < 0 else ctx_start+1
-        ctx_end=final_md.find('.', end)
-        if ctx_end < 0: ctx_end=final_md.find('\n', end)
-        if ctx_end < 0: ctx_end=end
-        else: ctx_end+=1
-        citations.append({
-            'citation_id': f'cit-{i:05d}', 'reference_id': m.group(2), 'raw_text': m.group(0),
-            'label': m.group(1), 'char_start': start, 'char_end': end,
-            'context_char_start': max(0,ctx_start), 'context_char_end': min(len(final_md),ctx_end),
-            'section_id': section_id_for(start), 'page_start': page_for_offset(pages,start), 'page_end': page_for_offset(pages,max(start,end-1)),
-        })
-
-    # Figures from markdown image refs + metadata.
-    figures=[]
-    fig_meta_by_file={str(f.get('file','')):f for f in figs_meta}
+        ctx_start=final_md.rfind('\n',0,start) if ctx_start<0 else ctx_start+1
+        ctx_end=final_md.find('.',end)
+        if ctx_end<0: ctx_end=final_md.find('\n',end)
+        ctx_end=(ctx_end+1 if ctx_end>=0 else end)
+        citations.append({'citation_id': f'cit-{i:05d}', 'reference_id': m.group(2), 'raw_text': m.group(0), 'label': m.group(1), 'char_start': start, 'char_end': end, 'context_char_start': max(0,ctx_start), 'context_char_end': min(len(final_md),ctx_end), 'sentence_context': final_md[max(0,ctx_start):min(len(final_md),ctx_end)].strip(), 'section_id': section_id_for(start), 'page_start': page_for_offset(pages,start), 'page_end': page_for_offset(pages,max(start,end-1))})
+    figures=[]; fig_meta_by_file={str(f.get('file','')):f for f in figs_meta}
     for i,m in enumerate(IMAGE_RE.finditer(final_md),1):
-        file=m.group(2).lstrip('./')
-        meta_f=fig_meta_by_file.get(file,{})
-        figures.append({
-            'figure_id': meta_f.get('id') or f'fig-{i:03d}', 'file': file, 'caption': m.group(1),
-            'char_start': m.start(), 'char_end': m.end(), 'page_start': page_for_offset(pages,m.start()), 'page_end': page_for_offset(pages,m.end()-1)
-        })
-
-    # Tables: contiguous markdown pipe-table blocks.
+        file=m.group(2).lstrip('./'); mf=fig_meta_by_file.get(file,{})
+        figures.append({'figure_id': mf.get('id') or f'fig-{i:03d}', 'file': file, 'caption': m.group(1), 'char_start': m.start(), 'char_end': m.end(), 'page_start': page_for_offset(pages,m.start()), 'page_end': page_for_offset(pages,m.end()-1)})
     tables=[]
-    table_re=re.compile(r"(?ms)(?:^\|.*\|\s*$\n?){2,}")
-    for i,m in enumerate(table_re.finditer(final_md),1):
+    for i,m in enumerate(re.finditer(r"(?ms)(?:^\|.*\|\s*$\n?){2,}", final_md),1):
         tables.append({'table_id': f'table-{i:03d}', 'char_start': m.start(), 'char_end': m.end(), 'page_start': page_for_offset(pages,m.start()), 'page_end': page_for_offset(pages,m.end()-1), 'caption': ''})
-
-    return {
-        'parser': {'name': 'PDF-to-MD pipeline_v2', 'version': '2', 'created_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())},
-        'source': {'pdf': pdf_path.name, 'pdf_sha256': sha256_file(pdf_path), 'markdown_sha256': sha256_text(final_md), 'slug': slug, **(meta or {})},
-        'pages': pages, 'sections': sections, 'paragraphs': paragraphs,
-        'tables': tables, 'figures': figures, 'references': ref_items, 'citations': citations,
-    }
+    return {'parser': {'name':'PDF-to-MD pipeline_v2','version':'2','created_at':time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}, 'source': {'pdf': pdf_path.name, 'pdf_sha256': sha256_file(pdf_path), 'markdown_sha256': sha256_text(final_md), 'slug': slug, **(meta or {})}, 'pages': pages, 'sections': sections, 'paragraphs': paragraphs, 'tables': tables, 'figures': figures, 'references': ref_items, 'citations': citations}
 
 
 def cleanup_page_markdown(md, figs_remap):
@@ -805,7 +758,6 @@ def convert_pdf(pdf_path, out_root, force=False):
         "confidence": confidence,
     }
     (out_dir / "stats.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
-    # Parser QA report for harness readiness. Imported lazily to avoid slowing conversion startup.
     try:
         from validate import validate_converted_dir
         parse_quality = validate_converted_dir(out_dir)
@@ -820,17 +772,83 @@ def convert_pdf(pdf_path, out_root, force=False):
     return {"slug": slug, "stats": stats, "skipped": False}
 
 
+def _post_convert_enrich(pdf_path, out_dir, *,
+                          enrich_refs=False, verify_refs=False,
+                          export_docling=False):
+    """Optional post-processing: refextract enrichment, ref verification,
+    Docling-compatible export. Each step is independent and opt-in.
+    """
+    paper_json = out_dir / "paper.json"
+    if not paper_json.exists():
+        return
+    paper = json.loads(paper_json.read_text(encoding="utf-8"))
+
+    if enrich_refs:
+        try:
+            from refextract_bridge import enrich_references
+            enrich_references(paper.get("references") or [], pdf_path)
+            print(f"   enriched references via refextract")
+        except Exception as e:
+            print(f"   refextract enrichment failed: {e}")
+
+    if verify_refs:
+        try:
+            from ref_verifier import verify_references
+            summary = verify_references(paper.get("references") or [],
+                                          sleep_between=0.1)
+            print(f"   verified references: {summary}")
+        except Exception as e:
+            print(f"   ref verification failed: {e}")
+
+    if enrich_refs or verify_refs:
+        paper_json.write_text(json.dumps(paper, indent=2,
+                                           ensure_ascii=False),
+                                encoding="utf-8")
+        (out_dir / "references.json").write_text(
+            json.dumps(paper.get("references") or [], indent=2,
+                        ensure_ascii=False), encoding="utf-8")
+
+    if export_docling:
+        try:
+            from docling_export import write_docling_json
+            md_path = out_dir / "paper.md"
+            out_path = write_docling_json(
+                paper_json,
+                pdf_path=pdf_path,
+                markdown_path=md_path if md_path.exists() else None,
+                validate=True)
+            print(f"   wrote docling export: {out_path.name}")
+        except Exception as e:
+            print(f"   docling export failed: {e}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pdfs", nargs="+", help="PDF paths")
     ap.add_argument("--out", default="/home/user/output_v2")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--enrich-refs", action="store_true",
+                     help="Augment refs with refextract structured fields")
+    ap.add_argument("--verify-refs", action="store_true",
+                     help="Verify refs against Crossref/OpenAlex (slow, network)")
+    ap.add_argument("--docling", action="store_true",
+                     help="Also emit paper.docling.json (DoclingDocument)")
     args = ap.parse_args()
     out_root = Path(args.out)
     out_root.mkdir(exist_ok=True)
     for p in args.pdfs:
         try:
             convert_pdf(Path(p), out_root, force=args.force)
+            # Resolve output dir from slug
+            slug = slugify(Path(p).stem)
+            out_dir = out_root / slug
+            if out_dir.exists():
+                _post_convert_enrich(
+                    Path(p), out_dir,
+                    enrich_refs=args.enrich_refs,
+                    verify_refs=args.verify_refs,
+                    export_docling=args.docling,
+                )
         except Exception as e:
             import traceback
             print(f"   FAIL on {p}: {e}")
