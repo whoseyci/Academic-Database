@@ -3621,7 +3621,17 @@ def store_citation_location_suggestions(packet: dict[str, Any]) -> list[str]:
 
 
 def cmd_suggest_cited_claim_location(args):
-    packet=suggest_cited_claim_locations(args.context_id, limit=args.limit, include_claims=not args.no_claims, include_spans=not args.no_spans, min_score=args.min_score)
+    packet=suggest_cited_claim_locations(args.context_id, limit=max(args.limit*3,args.limit), include_claims=not args.no_claims, include_spans=not args.no_spans, min_score=args.min_score)
+    if args.learned and packet.get("suggestions"):
+        model=load_learned_rankers().get("citation_location", {})
+        weights=model.get("weights") or {}
+        for sug in packet["suggestions"]:
+            ls=learned_term_score(" ".join([packet.get("query_text") or "", sug.get("matched_text") or ""]), weights)
+            sug.setdefault("score_json", {})["learned_score"] = ls
+            sug["score"] = round(float(sug.get("score") or 0) + ls * args.learned_weight, 4)
+        packet["suggestions"] = sorted(packet["suggestions"], key=lambda x:x.get("score",0), reverse=True)[:args.limit]
+    else:
+        packet["suggestions"] = (packet.get("suggestions") or [])[:args.limit]
     if args.store and packet.get("suggestions"):
         ids=store_citation_location_suggestions(packet)
         for sid,sug in zip(ids, packet["suggestions"]): sug["suggestion_id"]=sid
@@ -3645,7 +3655,17 @@ def cmd_suggest_cited_claim_locations(args):
     conn=db(); rows=conn.execute("SELECT context_id FROM citation_contexts " + ("WHERE citing_source_id=? " if args.source_id else "") + "ORDER BY context_id LIMIT ?", ((args.source_id, args.limit) if args.source_id else (args.limit,))).fetchall(); conn.close()
     packets=[]; stored=0
     for r in rows:
-        packet=suggest_cited_claim_locations(r["context_id"], limit=args.per_context, min_score=args.min_score)
+        packet=suggest_cited_claim_locations(r["context_id"], limit=max(args.per_context*3,args.per_context), min_score=args.min_score)
+        if args.learned and packet.get("suggestions"):
+            model=load_learned_rankers().get("citation_location", {})
+            weights=model.get("weights") or {}
+            for sug in packet["suggestions"]:
+                ls=learned_term_score(" ".join([packet.get("query_text") or "", sug.get("matched_text") or ""]), weights)
+                sug.setdefault("score_json", {})["learned_score"] = ls
+                sug["score"] = round(float(sug.get("score") or 0) + ls * args.learned_weight, 4)
+            packet["suggestions"] = sorted(packet["suggestions"], key=lambda x:x.get("score",0), reverse=True)[:args.per_context]
+        else:
+            packet["suggestions"] = (packet.get("suggestions") or [])[:args.per_context]
         if args.store and packet.get("suggestions"):
             stored += len(store_citation_location_suggestions(packet))
         packets.append(packet)
@@ -3825,7 +3845,17 @@ def store_source_card_suggestions(candidates: list[dict[str, Any]]) -> list[str]
 
 
 def cmd_suggest_source_cards(args):
-    candidates=source_card_suggestion_candidates(args.source_id, limit=args.limit, min_score=args.min_score)
+    candidates=source_card_suggestion_candidates(args.source_id, limit=max(args.limit * 3, args.limit), min_score=args.min_score)
+    if args.learned:
+        model=load_learned_rankers().get("source_card", {})
+        weights=model.get("weights") or {}
+        for c in candidates:
+            ls=learned_term_score(c.get("text") or "", weights)
+            c.setdefault("score_json", {})["learned_score"] = ls
+            c["score"] = round(float(c.get("score") or 0) + ls * args.learned_weight, 4)
+        candidates=sorted(candidates, key=lambda x:x.get("score",0), reverse=True)[:args.limit]
+    else:
+        candidates=candidates[:args.limit]
     if args.store and candidates:
         ids=store_source_card_suggestions(candidates)
         for sid,c in zip(ids,candidates): c["suggestion_id"]=sid
@@ -3920,6 +3950,21 @@ def cmd_repair_citation_contexts(args):
 # ---------- reference triage / reading priority / learned lightweight rankers ----------
 
 LEARNED_RANKERS_PATH = REPORTS / "learned_rankers.json"
+
+
+def load_learned_rankers() -> dict[str, Any]:
+    if not LEARNED_RANKERS_PATH.exists():
+        return {}
+    try:
+        return json.loads(LEARNED_RANKERS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def learned_term_score(text: str, weights: dict[str, float]|None) -> float:
+    if not weights:
+        return 0.0
+    return round(sum(float(weights.get(t, 0.0)) for t in set(feature_terms(text))), 5)
 
 
 def feature_terms(text: str) -> list[str]:
@@ -4190,6 +4235,163 @@ def cmd_promote_cited_locations(args):
             print(f"  {short(c['text'],220)}")
 
 
+# ---------- graph analytics / draft red-team ----------
+
+def claim_usage_from_citation_locations() -> dict[str, dict[str, Any]]:
+    init_db(True); conn=db()
+    rows=[dict(r) for r in conn.execute("""
+        SELECT cls.*, cc.citing_source_id, cc.citation_function
+        FROM citation_location_suggestions cls
+        LEFT JOIN citation_contexts cc ON cc.context_id=cls.context_id
+        WHERE cls.target_type='claim' AND cls.target_id IS NOT NULL
+    """).fetchall()]
+    conn.close(); out={}
+    for r in rows:
+        cid=r.get("target_id"); d=out.setdefault(cid,{"contexts":0,"citing_sources":set(),"accepted":0,"weak":0,"rejected":0,"candidate":0,"functions":collections.Counter()})
+        d["contexts"] += 1
+        if r.get("citing_source_id"): d["citing_sources"].add(r["citing_source_id"])
+        st=r.get("status") or "candidate_location"
+        if st == "accepted": d["accepted"] += 1
+        elif st == "weak_match": d["weak"] += 1
+        elif st == "rejected": d["rejected"] += 1
+        else: d["candidate"] += 1
+        if r.get("citation_function"): d["functions"][r["citation_function"]]+=1
+    for d in out.values():
+        d["citing_source_count"]=len(d["citing_sources"]); d["citing_sources"]=sorted(d["citing_sources"]); d["functions"]=dict(d["functions"])
+    return out
+
+
+def centrality_score(card: dict[str, Any], usage: dict[str, Any], brief_count: int, relation_count: int) -> float:
+    grade_bonus={"A":1.0,"B":0.7,"C":0.25,"D":0.0,"X":-1.0}.get(card.get("evidence_grade"),0)
+    status_bonus={"verified":1.0,"needs_page_check":0.3,"candidate_needs_review":0.2,"needs_source_check":0.1,"superseded":-1,"rejected":-2}.get(card.get("status"),0)
+    return round(usage.get("contexts",0)*0.5 + usage.get("citing_source_count",0)*1.0 + usage.get("accepted",0)*2.0 - usage.get("rejected",0)*1.5 + brief_count*0.8 + relation_count*0.4 + grade_bonus + status_bonus, 3)
+
+
+def cmd_central_claims(args):
+    init_db(True); conn=db(); usage=claim_usage_from_citation_locations(); briefs=brief_usage_counts(); rows=conn.execute("SELECT * FROM source_cards WHERE verification_status!='rejected'").fetchall(); out=[]
+    for r in rows:
+        card=claim_card(r,"standard"); cid=card["claim_id"]
+        if args.source_id and card["source_id"] != args.source_id: continue
+        if args.topic:
+            hay=" ".join([card.get("claim") or "", card.get("evidence") or "", " ".join(tags_for_claim(cid))])
+            if token_overlap_score(args.topic, hay) <= 0: continue
+        rel_count=conn.execute("SELECT COUNT(*) FROM claim_relations WHERE claim_a=? OR claim_b=?", (cid,cid)).fetchone()[0]
+        u=usage.get(cid,{"contexts":0,"citing_source_count":0,"accepted":0,"weak":0,"rejected":0,"candidate":0,"functions":{}})
+        score=centrality_score(card,u,briefs.get(cid,0),rel_count)
+        if score <= 0 and args.nonzero: continue
+        out.append({**card,"centrality_score":score,"citation_usage":u,"brief_count":briefs.get(cid,0),"relation_count":rel_count})
+    conn.close(); out=sorted(out,key=lambda x:x["centrality_score"], reverse=True)[:args.limit]
+    if args.json: print_json({"count":len(out),"items":out})
+    else:
+        print(f"Central claims: {len(out)}")
+        for c in out:
+            print(f"- {c['claim_id']} centrality:{c['centrality_score']} grade:{c['evidence_grade']} {c['status']} cited:{c['citation_usage'].get('contexts',0)} briefs:{c['brief_count']} rel:{c['relation_count']}")
+            print(f"  {short(c['claim'],220)}")
+
+
+def cmd_most_cited_unverified(args):
+    class Obj: pass
+    o=Obj(); o.source_id=args.source_id; o.topic=args.topic; o.limit=args.limit*5; o.nonzero=True; o.json=True
+    init_db(True); conn=db(); usage=claim_usage_from_citation_locations(); rows=conn.execute("SELECT * FROM source_cards WHERE verification_status NOT IN ('verified','rejected','superseded')").fetchall(); out=[]
+    for r in rows:
+        card=claim_card(r,"standard"); cid=card["claim_id"]
+        if args.source_id and card["source_id"] != args.source_id: continue
+        u=usage.get(cid,{"contexts":0,"citing_source_count":0,"accepted":0,"weak":0,"rejected":0,"candidate":0,"functions":{}})
+        if not u.get("contexts") and args.cited_only: continue
+        score=centrality_score(card,u,brief_usage_counts().get(cid,0),0)
+        out.append({**card,"centrality_score":score,"citation_usage":u})
+    conn.close(); out=sorted(out,key=lambda x:x["centrality_score"], reverse=True)[:args.limit]
+    if args.json: print_json({"count":len(out),"items":out})
+    else:
+        print(f"Most-cited unverified: {len(out)}")
+        for c in out:
+            print(f"- {c['claim_id']} score:{c['centrality_score']} cited:{c['citation_usage'].get('contexts',0)} {c['status']} {short(c['claim'],180)}")
+
+
+def cmd_source_neighborhood(args):
+    init_db(True); conn=db(); src=conn.execute("SELECT * FROM sources WHERE source_id=?", (args.source_id,)).fetchone()
+    if not src: raise SystemExit(f"Unknown source_id: {args.source_id}")
+    outgoing=[dict(r) for r in conn.execute("SELECT * FROM citation_contexts WHERE citing_source_id=? ORDER BY context_id LIMIT ?", (args.source_id,args.limit)).fetchall()]
+    incoming=[dict(r) for r in conn.execute("SELECT * FROM citation_contexts WHERE matched_source_id=? ORDER BY citing_source_id, context_id LIMIT ?", (args.source_id,args.limit)).fetchall()]
+    refs=[dict(r) for r in conn.execute("SELECT * FROM source_references WHERE source_id=? ORDER BY reference_id LIMIT ?", (args.source_id,args.limit)).fetchall()]
+    cards=[claim_card(r,"minimal") for r in conn.execute("SELECT * FROM source_cards WHERE source_id=? ORDER BY claim_id LIMIT ?", (args.source_id,args.limit)).fetchall()]
+    conn.close(); payload={"source":dict(src),"outgoing_citation_contexts":outgoing,"incoming_citation_contexts":incoming,"references":refs,"source_cards":cards,"location_usage":source_location_usage(args.source_id)[:args.limit]}
+    if args.json: print_json(payload)
+    else:
+        print(f"# Source neighborhood: {args.source_id}")
+        print(f"Title: {src['title']}")
+        print(f"Outgoing citation contexts: {len(outgoing)} | Incoming citation contexts: {len(incoming)} | Source cards: {len(cards)}")
+        if incoming:
+            print("\nIncoming citations:")
+            for c in incoming[:10]: print(f"- {c['citing_source_id']} {c['context_id']} {short(c.get('context_text'),180)}")
+        if payload["location_usage"]:
+            print("\nTop cited locations:")
+            for u in payload["location_usage"][:10]: print(f"- strength:{u['strength']} contexts:{u['context_count']} {u['handle']}")
+
+
+def cmd_claim_network(args):
+    init_db(True); conn=db(); usage=claim_usage_from_citation_locations(); nodes=[]; edges=[]
+    if args.source_id:
+        source_ids=[args.source_id]
+    else:
+        source_ids=[r["source_id"] for r in conn.execute("SELECT source_id FROM sources ORDER BY source_id").fetchall()]
+    for sid in source_ids:
+        nodes.append({"id":f"source:{sid}","kind":"source","label":sid})
+    cards=[dict(r) for r in conn.execute("SELECT * FROM source_cards" + (" WHERE source_id=?" if args.source_id else ""), ((args.source_id,) if args.source_id else ())).fetchall()]
+    for r in cards[:args.limit]:
+        card=claim_card(r,"minimal"); cid=card["claim_id"]
+        nodes.append({"id":f"claim:{cid}","kind":"claim","label":cid,"source_id":card["source_id"],"status":card["status"],"grade":card["evidence_grade"],"centrality":centrality_score(card,usage.get(cid,{}),brief_usage_counts().get(cid,0),0)})
+        edges.append({"source":f"source:{card['source_id']}","target":f"claim:{cid}","kind":"has_card"})
+    for r in conn.execute("SELECT * FROM claim_relations LIMIT ?", (args.limit,)).fetchall():
+        edges.append({"source":f"claim:{r['claim_a']}","target":f"claim:{r['claim_b']}","kind":r["relation_type"],"status":r["status"]})
+    for r in conn.execute("SELECT citing_source_id, matched_source_id, COUNT(*) n FROM citation_contexts WHERE matched_source_id IS NOT NULL AND matched_source_id!='' GROUP BY citing_source_id, matched_source_id LIMIT ?", (args.limit,)).fetchall():
+        nodes.append({"id":f"source:{r['citing_source_id']}","kind":"source","label":r['citing_source_id']})
+        nodes.append({"id":f"source:{r['matched_source_id']}","kind":"source","label":r['matched_source_id']})
+        edges.append({"source":f"source:{r['citing_source_id']}","target":f"source:{r['matched_source_id']}","kind":"cites","weight":r["n"]})
+    conn.close(); payload={"nodes":nodes,"edges":edges}
+    if args.json: print_json(payload)
+    else:
+        print(f"Claim network: {len(nodes)} nodes, {len(edges)} edges")
+        for e in edges[:args.limit]: print(f"- {e['source']} --{e['kind']}--> {e['target']}")
+
+
+def cmd_redteam_draft(args):
+    text=Path(args.path).read_text(encoding="utf-8", errors="ignore")
+    ids=draft_claim_ids(text); conn=db(); known=[]; unknown=[]
+    for cid in ids:
+        row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (cid,)).fetchone()
+        if row: known.append(claim_card(row,"standard"))
+        else: unknown.append(cid)
+    status_counts=collections.Counter(c["status"] for c in known); grade_counts=collections.Counter(c["evidence_grade"] for c in known); source_counts=collections.Counter(c["source_id"] for c in known)
+    issues=[]
+    for c in known:
+        if c["status"] != "verified": issues.append({"severity":"high","type":"unverified_claim_used","claim_id":c["claim_id"],"detail":c["status"]})
+        if c["evidence_grade"] in {"C","D","X"}: issues.append({"severity":"medium","type":"weak_evidence_grade","claim_id":c["claim_id"],"detail":c["evidence_grade"]})
+        if not c.get("page"): issues.append({"severity":"medium","type":"missing_page","claim_id":c["claim_id"]})
+    uncited=substantive_sentences_without_claim_ids(text,args.min_words)
+    for u in uncited[:args.show_uncited]: issues.append({"severity":"medium","type":"uncited_substantive_sentence","sentence_no":u["sentence_no"],"detail":u["text"]})
+    if len(source_counts)==1 and len(known)>=args.min_claims_for_source_warning:
+        issues.append({"severity":"medium","type":"single_source_dependency","detail":dict(source_counts)})
+    if unknown: issues.append({"severity":"high","type":"unknown_claim_ids","detail":unknown})
+    # Simple overclaim lexicon in uncited text.
+    for u in uncited:
+        if re.search(r"\b(proves|demonstrates|always|never|causes|determines)\b", u["text"], re.I):
+            issues.append({"severity":"medium","type":"strong_language_without_claim","sentence_no":u["sentence_no"],"detail":u["text"]})
+    payload={"draft":str(args.path),"claim_ids":ids,"status_counts":dict(status_counts),"evidence_grade_counts":dict(grade_counts),"source_counts":dict(source_counts),"issues":issues,"issue_counts":dict(collections.Counter(i["type"] for i in issues)),"recommendations":[]}
+    if any(i["type"]=="unverified_claim_used" for i in issues): payload["recommendations"].append("Verify or downgrade language around non-verified claims.")
+    if any(i["type"]=="uncited_substantive_sentence" for i in issues): payload["recommendations"].append("Attach claim IDs or mark unsupported sentences as interpretation/hypothesis.")
+    if any(i["type"]=="single_source_dependency" for i in issues): payload["recommendations"].append("Increase source diversity or explicitly justify why one source carries the section.")
+    conn.close()
+    if args.json: print_json(payload)
+    else:
+        print(f"Red-team draft: {args.path}")
+        print(f"Claims: {len(known)} known, {len(unknown)} unknown | Sources: {dict(source_counts)} | Statuses: {dict(status_counts)} | Grades: {dict(grade_counts)}")
+        print(f"Issues: {len(issues)}")
+        for i in issues[:args.limit]: print(f"- [{i['severity']}] {i['type']}: {i.get('claim_id') or i.get('sentence_no') or ''} {short(i.get('detail'),220)}")
+        if payload["recommendations"]:
+            print("Recommendations:"); [print(f"- {r}") for r in payload["recommendations"]]
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
@@ -4270,7 +4472,7 @@ def main():
     rcc=sub.add_parser("repair-citation-contexts", help="Repair citation contexts to full sentence boundaries when citing source blobs are available")
     rcc.add_argument("--source-id"); rcc.add_argument("--context-id"); rcc.add_argument("--limit", type=int, default=500); rcc.add_argument("--show", type=int, default=20); rcc.add_argument("--dry-run", action="store_true"); rcc.add_argument("--json", action="store_true"); rcc.set_defaults(func=cmd_repair_citation_contexts)
     scs=sub.add_parser("suggest-source-cards", help="Suggest source-card candidates from a parsed markdown source")
-    scs.add_argument("source_id"); scs.add_argument("--limit", type=int, default=80); scs.add_argument("--min-score", type=float, default=0.25); scs.add_argument("--store", action="store_true"); scs.add_argument("--json", action="store_true"); scs.set_defaults(func=cmd_suggest_source_cards)
+    scs.add_argument("source_id"); scs.add_argument("--limit", type=int, default=80); scs.add_argument("--min-score", type=float, default=0.25); scs.add_argument("--learned", action="store_true"); scs.add_argument("--learned-weight", type=float, default=0.35); scs.add_argument("--store", action="store_true"); scs.add_argument("--json", action="store_true"); scs.set_defaults(func=cmd_suggest_source_cards)
     lscs=sub.add_parser("source-card-suggestions", help="List stored source-card suggestions")
     lscs.add_argument("--source-id"); lscs.add_argument("--status"); lscs.add_argument("--card-role", choices=sorted(CARD_ROLES)); lscs.add_argument("--limit", type=int, default=80); lscs.add_argument("--json", action="store_true"); lscs.set_defaults(func=cmd_source_card_suggestions)
     ascs=sub.add_parser("accept-source-card-suggestion", help="Create a source card from a stored suggestion")
@@ -4278,9 +4480,9 @@ def main():
     rscs=sub.add_parser("reject-source-card-suggestion", help="Reject a stored source-card suggestion")
     rscs.add_argument("suggestion_id"); rscs.add_argument("--label", choices=sorted(REVIEW_LABELS)); rscs.set_defaults(func=cmd_reject_source_card_suggestion)
     scl=sub.add_parser("suggest-cited-claim-location", help="Suggest where one citation context is supported in the matched/backtracked source")
-    scl.add_argument("context_id"); scl.add_argument("--limit", type=int, default=10); scl.add_argument("--min-score", type=float, default=0.05); scl.add_argument("--store", action="store_true"); scl.add_argument("--no-claims", action="store_true"); scl.add_argument("--no-spans", action="store_true"); scl.add_argument("--json", action="store_true"); scl.set_defaults(func=cmd_suggest_cited_claim_location)
+    scl.add_argument("context_id"); scl.add_argument("--limit", type=int, default=10); scl.add_argument("--min-score", type=float, default=0.05); scl.add_argument("--learned", action="store_true"); scl.add_argument("--learned-weight", type=float, default=0.35); scl.add_argument("--store", action="store_true"); scl.add_argument("--no-claims", action="store_true"); scl.add_argument("--no-spans", action="store_true"); scl.add_argument("--json", action="store_true"); scl.set_defaults(func=cmd_suggest_cited_claim_location)
     scls=sub.add_parser("suggest-cited-claim-locations", help="Batch-generate citation location suggestions")
-    scls.add_argument("--source-id"); scls.add_argument("--limit", type=int, default=50); scls.add_argument("--per-context", type=int, default=5); scls.add_argument("--min-score", type=float, default=0.05); scls.add_argument("--store", action="store_true"); scls.add_argument("--json", action="store_true"); scls.set_defaults(func=cmd_suggest_cited_claim_locations)
+    scls.add_argument("--source-id"); scls.add_argument("--limit", type=int, default=50); scls.add_argument("--per-context", type=int, default=5); scls.add_argument("--min-score", type=float, default=0.05); scls.add_argument("--learned", action="store_true"); scls.add_argument("--learned-weight", type=float, default=0.35); scls.add_argument("--store", action="store_true"); scls.add_argument("--json", action="store_true"); scls.set_defaults(func=cmd_suggest_cited_claim_locations)
     cls=sub.add_parser("citation-location-suggestions", help="List stored citation location suggestions")
     cls.add_argument("--context-id"); cls.add_argument("--status"); cls.add_argument("--limit", type=int, default=50); cls.add_argument("--json", action="store_true"); cls.set_defaults(func=cmd_citation_location_suggestions)
     vl=sub.add_parser("verify-location", help="Mark a citation location suggestion as accepted/rejected/etc.")
@@ -4320,6 +4522,16 @@ def main():
     slu.add_argument("source_id"); slu.add_argument("--min-overlap", type=float, default=0.45); slu.add_argument("--limit", type=int, default=50); slu.add_argument("--json", action="store_true"); slu.set_defaults(func=cmd_source_location_usage)
     pcl=sub.add_parser("promote-cited-locations", help="Turn repeatedly cited support ranges into source-card suggestions")
     pcl.add_argument("source_id"); pcl.add_argument("--min-strength", type=float, default=1.0); pcl.add_argument("--limit", type=int, default=30); pcl.add_argument("--store", action="store_true"); pcl.add_argument("--json", action="store_true"); pcl.set_defaults(func=cmd_promote_cited_locations)
+    ccg=sub.add_parser("central-claims", help="Rank central/high-value source cards by citation usage, review status and brief use")
+    ccg.add_argument("--source-id"); ccg.add_argument("--topic"); ccg.add_argument("--limit", type=int, default=30); ccg.add_argument("--nonzero", action="store_true"); ccg.add_argument("--json", action="store_true"); ccg.set_defaults(func=cmd_central_claims)
+    mcu=sub.add_parser("most-cited-unverified", help="List unverified source cards with citation usage or high centrality")
+    mcu.add_argument("--source-id"); mcu.add_argument("--topic"); mcu.add_argument("--limit", type=int, default=30); mcu.add_argument("--cited-only", action="store_true"); mcu.add_argument("--json", action="store_true"); mcu.set_defaults(func=cmd_most_cited_unverified)
+    sn=sub.add_parser("source-neighborhood", help="Show incoming/outgoing citation and source-card neighborhood for one source")
+    sn.add_argument("source_id"); sn.add_argument("--limit", type=int, default=30); sn.add_argument("--json", action="store_true"); sn.set_defaults(func=cmd_source_neighborhood)
+    cn=sub.add_parser("claim-network", help="Export a lightweight claim/source/citation graph")
+    cn.add_argument("--source-id"); cn.add_argument("--limit", type=int, default=500); cn.add_argument("--json", action="store_true"); cn.set_defaults(func=cmd_claim_network)
+    rtd=sub.add_parser("redteam-draft", help="Stronger draft audit: unsupported claims, weak evidence, overclaiming and source diversity")
+    rtd.add_argument("path"); rtd.add_argument("--min-words", type=int, default=14); rtd.add_argument("--show-uncited", type=int, default=25); rtd.add_argument("--min-claims-for-source-warning", type=int, default=3); rtd.add_argument("--limit", type=int, default=80); rtd.add_argument("--json", action="store_true"); rtd.set_defaults(func=cmd_redteam_draft)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 

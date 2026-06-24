@@ -249,6 +249,16 @@ python rh2.py source-location-usage Dessart_2019
 python rh2.py promote-cited-locations Dessart_2019 --store
 ```
 
+Inspect graph centrality and red-team drafts:
+
+```bash
+python rh2.py central-claims --topic "contract flexibility"
+python rh2.py most-cited-unverified --cited-only
+python rh2.py source-neighborhood Canessa_2024
+python rh2.py claim-network --json > claim_network.json
+python rh2.py redteam-draft chapter.md
+```
+
 Audit a draft for claim traceability:
 
 ```bash

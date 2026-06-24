@@ -223,3 +223,17 @@ python rh2.py promote-cited-locations SOURCE_ID --store
 ```
 
 A repeated/accepted citation support location is a positive signal that the cited source range may be a valuable source card. This is a review-priority signal, not automatic verification and not an instruction to route all future citations to the same range.
+
+## Graph analytics and draft red-teaming
+
+Use graph-oriented commands to find central evidence, unresolved high-value cards, and weak draft arguments:
+
+```bash
+python rh2.py central-claims --topic "institutional trust"
+python rh2.py most-cited-unverified --cited-only
+python rh2.py source-neighborhood SOURCE_ID
+python rh2.py claim-network --json > claim_network.json
+python rh2.py redteam-draft chapter.md
+```
+
+`audit-draft` checks traceability. `redteam-draft` is stricter: it flags non-verified claim use, weak evidence grades, missing pages, source over-dependence, uncited substantive sentences, and strong unsupported wording.
