@@ -33,3 +33,6 @@ output_v2/
 *.gguf
 *.tmp.md
 _tmp_clean_ingest.md
+
+# Local app bundles/build output
+dist/

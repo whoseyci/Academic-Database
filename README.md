@@ -422,7 +422,7 @@ http://127.0.0.1:8765
 Settings live in `.env` and are copied from `.env.example` on first run:
 
 ```text
-RH_BRANCH=agent-harness-evidence-audit
+RH_BRANCH=main
 RH_REVIEW_HOST=127.0.0.1
 RH_REVIEW_PORT=8765
 RH_PULL_INTERVAL=30
@@ -431,3 +431,26 @@ PDF2MD_INSTALL_VISION=0
 ```
 
 If another collaborator pushes to the configured branch, `scripts/dev_watch.sh` pulls the update and restarts the review UI automatically. Keep the terminal window open while working.
+
+### Optional Mac app wrapper
+
+If you prefer a clickable app bundle, build and install the local launcher:
+
+```bash
+./scripts/install_mac_app.command
+```
+
+This creates:
+
+```text
+~/Applications/Academic Database.app
+```
+
+Launching the app will:
+
+1. pull the configured branch when the working tree is clean;
+2. create/update `.venv` if needed;
+3. start/restart `python rh2.py review-ui`;
+4. open the review cockpit in your browser.
+
+The app is a lightweight wrapper around this local repo, so your SQLite DB and parser artifacts stay on your Mac.
