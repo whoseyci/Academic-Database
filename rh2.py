@@ -4498,6 +4498,30 @@ def cmd_refresh_location_signals(args):
     else: print(f"Refreshed source-location signals for {result['source_id']}: {result['signals_written']}")
 
 
+def signals_for_range(source_id: str, start: int, end: int, min_overlap: float=0.35) -> list[dict[str, Any]]:
+    init_db(True); conn=db()
+    rows=[dict(r) for r in conn.execute("""
+        SELECT * FROM source_location_signals
+        WHERE source_id=? AND char_start IS NOT NULL AND char_end IS NOT NULL
+          AND NOT (char_end < ? OR char_start > ?)
+    """, (source_id, start, end)).fetchall()]
+    conn.close(); out=[]
+    for r in rows:
+        try:
+            if overlap_ratio(start,end,int(r['char_start']),int(r['char_end'])) >= min_overlap:
+                out.append(r)
+        except Exception:
+            pass
+    return out
+
+
+def location_signal_score(source_id: str, start: int|None, end: int|None) -> float:
+    if start is None or end is None: return 0.0
+    try: start_i=int(start); end_i=int(end)
+    except Exception: return 0.0
+    return round(sum(float(s.get('strength') or 0) for s in signals_for_range(source_id,start_i,end_i)),4)
+
+
 def cmd_location_signals(args):
     init_db(True); conn=db(); params=[]; where=[]
     if args.source_id: where.append("source_id=?"); params.append(args.source_id)
@@ -4689,6 +4713,150 @@ def assess_citation_support_deep(context_text: str, matched_text: str, score: fl
     return {'verdict':verdict,'flags':flags,'term_coverage':round(cov,4),'matched_terms':matched[:12],'missing_terms':missing[:12]}
 
 
+# ---------- interactive review UI / synthesis red-team / recursive orchestration ----------
+
+def review_state(limit: int=120) -> dict[str, Any]:
+    init_db(True)
+    conn=db(); usage=brief_usage_counts(); loc_usage=claim_usage_from_citation_locations(); queue=[]
+    for r in conn.execute("SELECT * FROM source_cards WHERE verification_status!='rejected' ORDER BY updated_at DESC LIMIT ?", (limit*3,)).fetchall():
+        card=claim_card(r,"standard"); cid=card["claim_id"]
+        rel_count=conn.execute("SELECT COUNT(*) FROM claim_relations WHERE claim_a=? OR claim_b=?", (cid,cid)).fetchone()[0]
+        sig=location_signal_score(card.get("source_id"), r["char_start"], r["char_end"])
+        queue.append({**card,"centrality_score":centrality_score(card,loc_usage.get(cid,{}),usage.get(cid,0),rel_count)+sig,"brief_count":usage.get(cid,0),"relation_count":rel_count,"location_signal_score":sig})
+    scs=[dict(r) for r in conn.execute("SELECT * FROM source_card_suggestions ORDER BY score DESC LIMIT ?", (limit,)).fetchall()]
+    cls=[dict(r) for r in conn.execute("SELECT * FROM citation_location_suggestions ORDER BY score DESC LIMIT ?", (limit,)).fetchall()]
+    synth=[dict(r) for r in conn.execute("SELECT * FROM synthesis_cards ORDER BY updated_at DESC LIMIT ?", (limit,)).fetchall()]
+    stats={}
+    for t in ["sources","source_cards","source_card_suggestions","citation_contexts","citation_location_suggestions","synthesis_cards","review_events","source_location_signals"]:
+        try: stats[t]=conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+        except Exception: stats[t]=0
+    conn.close()
+    return {"generated_at":now(),"stats":stats,"review_queue":sorted(queue,key=lambda x:x.get("centrality_score",0),reverse=True)[:limit],"source_card_suggestions":scs,"citation_location_suggestions":cls,"synthesis_cards":synth}
+
+
+REVIEW_UI_HTML = r'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review Cockpit</title><style>body{font-family:system-ui;margin:0;background:#101114;color:#eee}header{padding:18px 22px;border-bottom:1px solid #333;position:sticky;top:0;background:#101114;z-index:2}.grid{display:grid;grid-template-columns:280px 1fr;gap:14px;padding:14px}.side{background:#181a20;border:1px solid #333;border-radius:14px;padding:12px;height:calc(100vh - 95px);overflow:auto}.main{display:grid;gap:14px}.card{background:#181a20;border:1px solid #333;border-radius:14px;padding:14px}.item{border-top:1px solid #333;padding:10px 0}.muted{color:#aaa}.chip{display:inline-block;border:1px solid #555;border-radius:999px;padding:2px 8px;margin:2px;font-size:12px}.btn{background:#2d3748;color:#fff;border:1px solid #4a5568;border-radius:8px;padding:6px 9px;margin:3px;cursor:pointer}input,select{background:#0b0c10;color:#eee;border:1px solid #444;border-radius:8px;padding:6px;width:100%;box-sizing:border-box}.cmd{font-family:ui-monospace,monospace;background:#090a0d;padding:5px;border-radius:6px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}</style></head><body><header><h1>Interactive Review Cockpit</h1><span class="muted">Local DB mutating UI. Use on trusted localhost only.</span><button class="btn" onclick="load()">refresh</button><button class="btn" onclick="post('/api/refresh-signals',{})">refresh signals</button></header><div class="grid"><aside class="side" id="stats"></aside><main class="main"><section class="card"><h2>Review Queue</h2><div id="queue"></div></section><section class="card cols"><div><h2>Source-card Suggestions</h2><div id="scs"></div></div><div><h2>Citation-location Suggestions</h2><div id="cls"></div></div></section><section class="card"><h2>Synthesis Cards</h2><div id="syn"></div></section></main></div><script>
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+async function post(url,obj){let r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)}); let j=await r.json(); if(!j.ok) alert(JSON.stringify(j)); await load();}
+function item(c,type){let id=c.claim_id||c.suggestion_id||c.synthesis_id; return `<div class=item><b>${esc(id)}</b> ${c.evidence_grade?`<span class=chip>grade ${esc(c.evidence_grade)}</span>`:''} ${c.status?`<span class=chip>${esc(c.status)}</span>`:''}<p>${esc(c.claim||c.text||c.synthesis||c.matched_text||'')}</p>${type==='claim'?`<select id='st-${id}'><option>verified</option><option>candidate_needs_review</option><option>needs_page_check</option><option>needs_source_check</option><option>rejected</option><option>superseded</option></select><input id='nt-${id}' placeholder='note'><button class=btn onclick="post('/api/review',{claim_id:'${id}',status:document.getElementById('st-${id}').value,note:document.getElementById('nt-${id}').value,label:['good_claim']})">review</button><span class=cmd>python rh2.py review-packet ${esc(id)}</span>`:''}${type==='scs'?`<button class=btn onclick="post('/api/accept-source-card',{suggestion_id:'${id}'})">accept</button><button class=btn onclick="post('/api/reject-source-card',{suggestion_id:'${id}',label:'too_broad'})">reject</button>`:''}${type==='cls'?`<button class=btn onclick="post('/api/verify-location',{suggestion_id:'${id}',status:'accepted'})">accept loc</button><button class=btn onclick="post('/api/verify-location',{suggestion_id:'${id}',status:'rejected'})">reject loc</button>`:''}</div>`}
+async function load(){let d=await (await fetch('/api/state?limit=120')).json(); stats.innerHTML='<h2>Stats</h2>'+Object.entries(d.stats).map(([k,v])=>`<p>${k}: <b>${v}</b></p>`).join(''); queue.innerHTML=d.review_queue.map(x=>item(x,'claim')).join(''); scs.innerHTML=d.source_card_suggestions.map(x=>item(x,'scs')).join(''); cls.innerHTML=d.citation_location_suggestions.map(x=>item(x,'cls')).join(''); syn.innerHTML=d.synthesis_cards.map(x=>item(x,'syn')).join('')}
+load();</script></body></html>'''
+
+
+def cmd_review_ui(args):
+    import http.server, socketserver, urllib.parse
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _json(self,obj,code=200):
+            data=json.dumps(obj,ensure_ascii=False).encode(); self.send_response(code); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
+        def _html(self,text):
+            data=text.encode(); self.send_response(200); self.send_header('Content-Type','text/html'); self.send_header('Content-Length',str(len(data))); self.end_headers(); self.wfile.write(data)
+        def _body(self):
+            n=int(self.headers.get('Content-Length') or 0); return json.loads(self.rfile.read(n).decode() or '{}') if n else {}
+        def do_GET(self):
+            if self.path.startswith('/api/state'):
+                return self._json(review_state(args.limit))
+            return self._html(REVIEW_UI_HTML)
+        def do_POST(self):
+            try:
+                b=self._body(); path=urllib.parse.urlparse(self.path).path
+                if path=='/api/review':
+                    class O: pass
+                    o=O(); o.claim_id=b['claim_id']; o.status=b.get('status','candidate_needs_review'); o.note=b.get('note',''); o.actor='review-ui'; o.label=b.get('labels') or b.get('label') or []
+                    if isinstance(o.label,str): o.label=[o.label]
+                    cmd_review(o); return self._json({'ok':True})
+                if path=='/api/reject-source-card':
+                    class O: pass
+                    o=O(); o.suggestion_id=b['suggestion_id']; o.label=b.get('label'); cmd_reject_source_card_suggestion(o); return self._json({'ok':True})
+                if path=='/api/accept-source-card':
+                    class O: pass
+                    o=O(); o.suggestion_id=b['suggestion_id']; o.claim_id=None; o.claim=None; o.claim_type=None; o.scope_note=None; o.confidence='medium'; o.status='candidate_needs_review'; o.json=True; cmd_accept_source_card_suggestion(o); return self._json({'ok':True})
+                if path=='/api/verify-location':
+                    class O: pass
+                    o=O(); o.suggestion_id=b['suggestion_id']; o.status=b.get('status','accepted'); o.note=b.get('note',''); cmd_verify_location(o); return self._json({'ok':True})
+                if path=='/api/refresh-signals': rebuild_source_location_signals(b.get('source_id')); return self._json({'ok':True})
+                return self._json({'error':'unknown endpoint'},404)
+            except Exception as e: return self._json({'error':str(e)},500)
+        def log_message(self,fmt,*a):
+            if args.verbose: super().log_message(fmt,*a)
+    with socketserver.TCPServer((args.host,args.port),Handler) as httpd:
+        print(f"Review UI running at http://{args.host}:{args.port}"); httpd.serve_forever()
+
+
+def redteam_synthesis_payload(synthesis_id: str) -> dict[str, Any]:
+    payload=synthesis_payload(synthesis_id); syn=payload['synthesis']; cards=payload['claims']; issues=[]
+    sources=collections.Counter(c.get('source_id') for c in cards); statuses=collections.Counter(c.get('status') for c in cards); grades=collections.Counter(c.get('evidence_grade') for c in cards)
+    if not cards: issues.append({'severity':'high','type':'no_supporting_claims','detail':'Synthesis has no linked source cards.'})
+    for c in cards:
+        if c.get('status')!='verified': issues.append({'severity':'high','type':'unverified_supporting_claim','claim_id':c.get('claim_id'),'detail':c.get('status')})
+        if c.get('evidence_grade') in {'C','D','X'}: issues.append({'severity':'medium','type':'weak_supporting_evidence','claim_id':c.get('claim_id'),'detail':c.get('evidence_grade')})
+        if not c.get('page'): issues.append({'severity':'medium','type':'support_missing_page','claim_id':c.get('claim_id')})
+    support_text=' '.join([c.get('claim','')+' '+c.get('evidence','') for c in cards])
+    cov, matched, missing=weighted_term_coverage(syn.get('synthesis',''), support_text)
+    if cov < 0.25 and cards: issues.append({'severity':'medium','type':'low_term_alignment','detail':{'coverage':round(cov,3),'missing':missing[:12]}})
+    if len(sources)==1 and len(cards)>=2: issues.append({'severity':'medium','type':'single_source_synthesis','detail':dict(sources)})
+    if re.search(r"\b(proves|always|never|causes|determines)\b", syn.get('synthesis',''), re.I): issues.append({'severity':'medium','type':'strong_synthesis_language','detail':'Strong wording should be explicitly supported or softened.'})
+    rec=[]
+    if any(i['type']=='unverified_supporting_claim' for i in issues): rec.append('Verify supporting source cards before using this synthesis as final prose.')
+    if any(i['type']=='low_term_alignment' for i in issues): rec.append('Revise synthesis text or add source cards that support its central terms.')
+    return {'synthesis':syn,'support_count':len(cards),'source_counts':dict(sources),'status_counts':dict(statuses),'evidence_grade_counts':dict(grades),'term_alignment':{'coverage':round(cov,4),'matched_terms':matched[:12],'missing_terms':missing[:12]},'issues':issues,'issue_counts':dict(collections.Counter(i['type'] for i in issues)),'recommendations':rec,'supporting_claims':cards}
+
+
+def cmd_redteam_synthesis(args):
+    payload=redteam_synthesis_payload(args.synthesis_id)
+    if args.json: print_json(payload); return
+    syn=payload['synthesis']; print(f"Red-team synthesis: {syn['synthesis_id']} · {syn['title']}"); print(f"Support: {payload['support_count']} | Sources: {payload['source_counts']} | Statuses: {payload['status_counts']} | Grades: {payload['evidence_grade_counts']}"); print(f"Term alignment: {payload['term_alignment']['coverage']} matched={payload['term_alignment']['matched_terms']}")
+    for i in payload['issues'][:args.limit]: print(f"- [{i['severity']}] {i['type']}: {short(i.get('detail'),220)}")
+    if payload['recommendations']: print('Recommendations:'); [print(f"- {r}") for r in payload['recommendations']]
+
+
+def cmd_recursive_run(args):
+    def run_step(step: dict[str, Any], name: str, fn, obj=None):
+        import contextlib, io
+        buf=io.StringIO()
+        try:
+            if args.json or args.quiet:
+                with contextlib.redirect_stdout(buf):
+                    fn(obj) if obj is not None else fn()
+            else:
+                fn(obj) if obj is not None else fn()
+            step['actions'].append(name)
+            if buf.getvalue(): step.setdefault('logs', {})[name]=buf.getvalue()[-1200:]
+        except BaseException as e:
+            step.setdefault('errors', []).append({'step': name, 'error': str(e), 'log': buf.getvalue()[-1200:]})
+            if not args.quiet and not args.json:
+                print(f"[recursive-run] {name} failed: {e}")
+    trace=[]; prev=None
+    for round_i in range(1,args.rounds+1):
+        step={'round':round_i,'actions':[]}
+        if args.source_id:
+            if args.backfill:
+                class O: pass
+                o=O(); o.source_id=args.source_id; o.min_score=args.min_match_score; o.force=False; o.dry_run=args.dry_run; o.limit=9999; o.json=False
+                run_step(step,'backfill_source_matches',cmd_backfill_source_matches,o)
+            if args.suggest_locations:
+                class O: pass
+                o=O(); o.source_id=args.source_id; o.limit=args.context_limit; o.per_context=args.per_context; o.min_score=args.min_location_score; o.store=not args.dry_run; o.show=5; o.json=False
+                run_step(step,'suggest_locations_for_cited_source',cmd_suggest_locations_for_cited_source,o)
+            if args.suggest_cards:
+                class O: pass
+                o=O(); o.source_id=args.source_id; o.limit=args.card_limit; o.min_score=args.min_card_score; o.learned=args.learned; o.learned_weight=args.learned_weight; o.store=not args.dry_run; o.json=False
+                run_step(step,'suggest_source_cards',cmd_suggest_source_cards,o)
+            if args.promote:
+                class O: pass
+                o=O(); o.source_id=args.source_id; o.min_strength=args.min_usage_strength; o.limit=args.card_limit; o.store=not args.dry_run; o.json=False
+                run_step(step,'promote_cited_locations',cmd_promote_cited_locations,o)
+        if args.refresh_signals and not args.dry_run:
+            run_step(step,'refresh_location_signals',lambda: rebuild_source_location_signals(args.source_id))
+        if args.train and not args.dry_run:
+            class O: pass
+            o=O(); o.json=False
+            run_step(step,'train_rankers',cmd_train_rankers,o)
+        stats=review_state(args.review_limit)['stats']; step['stats']=stats; trace.append(step); stable=(stats==prev); prev=stats
+        if args.until_stable and stable: break
+    payload={'source_id':args.source_id,'rounds_run':len(trace),'trace':trace}
+    if args.json: print_json(payload)
+    elif not args.quiet: print('recursive-run complete')
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
@@ -4847,6 +5015,12 @@ def main():
     hr.add_argument("query"); hr.add_argument("--limit", type=int, default=10); hr.add_argument("--source-id"); hr.add_argument("--verified-only", action="store_true"); hr.add_argument("--status"); hr.add_argument("--claim-type"); hr.add_argument("--card-role"); hr.add_argument("--semantic-weight", type=float, default=0.35); hr.add_argument("--dim", type=int, default=2048); hr.add_argument("--semantic-only", action="store_true"); hr.add_argument("--include-semantic-only", action="store_true"); hr.add_argument("--json", action="store_true"); hr.set_defaults(func=cmd_hybrid_retrieve)
     pt=sub.add_parser("parser-tournament", help="Compare local parser text-extraction modes on one PDF")
     pt.add_argument("pdf"); pt.add_argument("--modes", default="pdftotext,pymupdf4llm,auto,reorder"); pt.add_argument("--timeout", type=int, default=240); pt.add_argument("--out"); pt.add_argument("--json", action="store_true"); pt.set_defaults(func=cmd_parser_tournament)
+    rsy=sub.add_parser("redteam-synthesis", help="Audit a synthesis card against its supporting source cards")
+    rsy.add_argument("synthesis_id"); rsy.add_argument("--limit", type=int, default=80); rsy.add_argument("--json", action="store_true"); rsy.set_defaults(func=cmd_redteam_synthesis)
+    rui2=sub.add_parser("review-ui", help="Run an interactive local review cockpit server")
+    rui2.add_argument("--host", default="127.0.0.1"); rui2.add_argument("--port", type=int, default=8765); rui2.add_argument("--limit", type=int, default=120); rui2.add_argument("--verbose", action="store_true"); rui2.set_defaults(func=cmd_review_ui)
+    rrn=sub.add_parser("recursive-run", help="Recursive database-native orchestration loop over backfill/suggestions/promotions/training")
+    rrn.add_argument("--source-id"); rrn.add_argument("--rounds", type=int, default=3); rrn.add_argument("--until-stable", action="store_true"); rrn.add_argument("--dry-run", action="store_true"); rrn.add_argument("--quiet", action="store_true"); rrn.add_argument("--learned", action="store_true"); rrn.add_argument("--learned-weight", type=float, default=0.35); rrn.add_argument("--backfill", action="store_true", default=True); rrn.add_argument("--no-backfill", dest="backfill", action="store_false"); rrn.add_argument("--suggest-locations", action="store_true", default=True); rrn.add_argument("--no-suggest-locations", dest="suggest_locations", action="store_false"); rrn.add_argument("--suggest-cards", action="store_true", default=True); rrn.add_argument("--no-suggest-cards", dest="suggest_cards", action="store_false"); rrn.add_argument("--promote", action="store_true", default=True); rrn.add_argument("--no-promote", dest="promote", action="store_false"); rrn.add_argument("--refresh-signals", action="store_true", default=True); rrn.add_argument("--train", action="store_true", default=True); rrn.add_argument("--min-match-score", type=float, default=0.75); rrn.add_argument("--min-location-score", type=float, default=0.08); rrn.add_argument("--min-card-score", type=float, default=0.3); rrn.add_argument("--min-usage-strength", type=float, default=1.0); rrn.add_argument("--context-limit", type=int, default=500); rrn.add_argument("--per-context", type=int, default=5); rrn.add_argument("--card-limit", type=int, default=40); rrn.add_argument("--review-limit", type=int, default=120); rrn.add_argument("--json", action="store_true"); rrn.set_defaults(func=cmd_recursive_run)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 
