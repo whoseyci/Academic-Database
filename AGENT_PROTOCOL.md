@@ -209,3 +209,17 @@ python rh2.py assess-citation-location CLOC-...
 ```
 
 These commands are deliberately heuristic. Treat their output as prioritisation and review guidance, not final verification.
+
+## Citation usage aggregation
+
+When a newly ingested source is already cited by existing papers, use the backfill workflow to connect old citation contexts to the new local source and then aggregate repeated support locations:
+
+```bash
+python rh2.py backfill-source-matches SOURCE_ID --dry-run
+python rh2.py backfill-source-matches SOURCE_ID
+python rh2.py suggest-locations-for-cited-source SOURCE_ID --store
+python rh2.py source-location-usage SOURCE_ID
+python rh2.py promote-cited-locations SOURCE_ID --store
+```
+
+A repeated/accepted citation support location is a positive signal that the cited source range may be a valuable source card. This is a review-priority signal, not automatic verification and not an instruction to route all future citations to the same range.

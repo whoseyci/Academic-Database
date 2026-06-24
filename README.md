@@ -239,6 +239,16 @@ python rh2.py reading-priority --query "contract flexibility transaction costs" 
 python rh2.py assess-citation-location CLOC-...
 ```
 
+When a new paper is ingested, backfill existing references/citations that point to it and aggregate repeated support locations:
+
+```bash
+python rh2.py backfill-source-matches Dessart_2019 --dry-run
+python rh2.py backfill-source-matches Dessart_2019
+python rh2.py suggest-locations-for-cited-source Dessart_2019 --store
+python rh2.py source-location-usage Dessart_2019
+python rh2.py promote-cited-locations Dessart_2019 --store
+```
+
 Audit a draft for claim traceability:
 
 ```bash

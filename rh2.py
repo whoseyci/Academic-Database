@@ -4052,6 +4052,144 @@ def cmd_assess_citation_location(args):
         print(short(sug.get("matched_text"), 320))
 
 
+def reference_match_score_for_source(ref: dict[str, Any], src: dict[str, Any]) -> tuple[float, list[str]]:
+    score=0.0; why=[]
+    if normalize_doi(ref.get("doi")) and normalize_doi(src.get("doi")) == normalize_doi(ref.get("doi")):
+        score += 1.0; why.append("doi")
+    if ref.get("year") and str(src.get("year") or "")[:4] == year_base(ref.get("year")):
+        score += 0.15; why.append("year")
+    ak=ref.get("author_key") or ""
+    if ak and (ak in source_author_keys(src.get("authors")) or ak in compact_key((src.get("authors") or "") + " " + (src.get("title") or ""))):
+        score += 0.35; why.append("author")
+    title_terms=set(citation_terms(ref.get("title") or ref.get("raw_text") or "")); src_terms=set(citation_terms(src.get("title") or ""))
+    if title_terms:
+        ov=len(title_terms & src_terms)/max(1,len(title_terms)); score += ov*0.35
+        if ov: why.append(f"title_overlap:{round(ov,2)}")
+    return round(score,3), why
+
+
+def cmd_backfill_source_matches(args):
+    init_db(True)
+    conn=db(); target=conn.execute("SELECT * FROM sources WHERE source_id=?", (args.source_id,)).fetchone()
+    if not target: raise SystemExit(f"Unknown source_id: {args.source_id}")
+    target=dict(target)
+    refs=[dict(r) for r in conn.execute("SELECT * FROM source_references WHERE source_id!=?", (args.source_id,)).fetchall()]
+    matches=[]; updated_ctx=0
+    for r in refs:
+        if r.get("matched_source_id") and not args.force:
+            continue
+        score, why=reference_match_score_for_source(r,target)
+        if score >= args.min_score:
+            matches.append({"reference_id":r["reference_id"],"citing_source_id":r["source_id"],"score":score,"why":why,"old_match":r.get("matched_source_id")})
+            if not args.dry_run:
+                conn.execute("UPDATE source_references SET matched_source_id=?, status=? WHERE reference_id=?", (args.source_id, "matched_local", r["reference_id"]))
+                cur=conn.execute("UPDATE citation_contexts SET matched_source_id=?, verification_status=?, updated_at=? WHERE reference_id=?", (args.source_id, "needs_verification", now(), r["reference_id"]))
+                updated_ctx += cur.rowcount
+    if not args.dry_run: conn.commit()
+    conn.close()
+    payload={"source_id":args.source_id,"dry_run":args.dry_run,"matches":matches,"references_matched":len(matches),"citation_contexts_updated":updated_ctx}
+    if args.json: print_json(payload)
+    else:
+        print(f"Backfill {args.source_id}: matched {len(matches)} references; updated {updated_ctx} citation contexts" + (" (dry run)" if args.dry_run else ""))
+        for m in matches[:args.limit]: print(f"- {m['reference_id']} from {m['citing_source_id']} score:{m['score']} why:{','.join(m['why'])}")
+
+
+def citation_context_ids_for_matched_source(source_id: str, limit: int=100000) -> list[str]:
+    init_db(True); conn=db()
+    rows=conn.execute("SELECT context_id FROM citation_contexts WHERE matched_source_id=? ORDER BY citing_source_id, context_id LIMIT ?", (source_id, limit)).fetchall()
+    conn.close(); return [r["context_id"] for r in rows]
+
+
+def cmd_suggest_locations_for_cited_source(args):
+    ids=citation_context_ids_for_matched_source(args.source_id, args.limit)
+    packets=[]; stored=0
+    for cid in ids:
+        packet=suggest_cited_claim_locations(cid, limit=args.per_context, min_score=args.min_score)
+        if args.store and packet.get("suggestions"):
+            stored += len(store_citation_location_suggestions(packet))
+        packets.append(packet)
+    payload={"source_id":args.source_id,"contexts":len(ids),"stored":stored,"packets":packets}
+    if args.json: print_json(payload)
+    else:
+        print(f"Cited-source suggestions for {args.source_id}: contexts={len(ids)} stored={stored}")
+        for p in packets[:args.show]:
+            top=(p.get("suggestions") or [{}])[0]
+            print(f"- {p.get('context_id')} from {p.get('citing_source_id')} top:{top.get('target_type')} {top.get('target_id')} score:{top.get('score')}")
+
+
+def overlap_ratio(a0:int,a1:int,b0:int,b1:int) -> float:
+    inter=max(0,min(a1,b1)-max(a0,b0)); return inter/max(1,min(a1-a0,b1-b0))
+
+
+def source_location_usage(source_id: str, *, min_overlap: float=0.45) -> list[dict[str, Any]]:
+    init_db(True)
+    conn=db(); rows=[dict(r) for r in conn.execute("""
+        SELECT cls.*, cc.citing_source_id, cc.citation_function, cc.verification_status AS context_status
+        FROM citation_location_suggestions cls
+        LEFT JOIN citation_contexts cc ON cc.context_id=cls.context_id
+        WHERE cls.source_id=? AND cls.char_start IS NOT NULL AND cls.char_end IS NOT NULL
+        ORDER BY cls.char_start, cls.char_end
+    """, (source_id,)).fetchall()]
+    conn.close()
+    clusters=[]
+    for r in rows:
+        try: start=int(r["char_start"]); end=int(r["char_end"])
+        except Exception: continue
+        placed=False
+        for cl in clusters:
+            if overlap_ratio(start,end,cl["char_start"],cl["char_end"]) >= min_overlap:
+                cl["char_start"]=min(cl["char_start"],start); cl["char_end"]=max(cl["char_end"],end); cl["items"].append(r); placed=True; break
+        if not placed: clusters.append({"source_id":source_id,"char_start":start,"char_end":end,"items":[r]})
+    out=[]
+    for cl in clusters:
+        items=cl["items"]; statuses=collections.Counter(i.get("status") or "" for i in items); funcs=collections.Counter(i.get("citation_function") or "" for i in items); citing={i.get("citing_source_id") for i in items if i.get("citing_source_id")}
+        accepted=statuses.get("accepted",0); weak=statuses.get("weak_match",0); rejected=statuses.get("rejected",0); candidates=statuses.get("candidate_location",0)
+        strength=round(len(items)*0.35 + len(citing)*0.55 + accepted*1.2 + candidates*0.1 - weak*0.35 - rejected*1.0,3)
+        status_rank={"accepted":4,"candidate_location":2,"needs_review":1,"weak_match":0,"rejected":-2}
+        best=max(items, key=lambda i: (status_rank.get(i.get("status"),0), float(i.get("score") or 0)))
+        rep_start=int(best.get("char_start") or cl["char_start"]); rep_end=int(best.get("char_end") or cl["char_end"])
+        out.append({"source_id":source_id,"char_start":cl["char_start"],"char_end":cl["char_end"],"representative_char_start":rep_start,"representative_char_end":rep_end,"handle":source_range_handle(source_id,rep_start,rep_end),"cluster_handle":source_range_handle(source_id,cl["char_start"],cl["char_end"]),"strength":strength,"context_count":len(items),"citing_source_count":len(citing),"accepted":accepted,"weak":weak,"rejected":rejected,"candidate":candidates,"status_counts":dict(statuses),"citation_functions":dict(funcs),"representative_suggestion_id":best.get("suggestion_id"),"suggestion_ids":[i["suggestion_id"] for i in items[:20]]})
+    return sorted(out,key=lambda x:x["strength"],reverse=True)
+
+
+def cmd_source_location_usage(args):
+    usage=source_location_usage(args.source_id, min_overlap=args.min_overlap)[:args.limit]
+    if args.json: print_json({"source_id":args.source_id,"count":len(usage),"locations":usage})
+    else:
+        print(f"Source-location usage: {args.source_id} ({len(usage)})")
+        for u in usage:
+            print(f"- strength:{u['strength']} contexts:{u['context_count']} sources:{u['citing_source_count']} accepted:{u['accepted']} weak:{u['weak']} rejected:{u['rejected']} {u['handle']}")
+            print(f"  functions: {u['citation_functions']}")
+
+
+def cmd_promote_cited_locations(args):
+    init_db(True)
+    locs=[u for u in source_location_usage(args.source_id) if u["strength"] >= args.min_strength][:args.limit]
+    text=""
+    try: text=read_source_text(args.source_id)
+    except SystemExit: text=""
+    candidates=[]
+    for u in locs:
+        start=u.get("representative_char_start", u["char_start"]); end=u.get("representative_char_end", u["char_end"])
+        snippet=source_slice(args.source_id,start,end) if text else ""
+        if not snippet: continue
+        score, why=source_card_candidate_score(snippet, "", "citation_usage")
+        usage_boost=min(0.45, u["strength"]*0.08)
+        why["citation_usage_strength"]=u["strength"]; why["citation_usage_boost"]=round(usage_boost,4); why["citation_context_count"]=u["context_count"]
+        ctype=why.get("suggested_claim_type") or infer_claim_type(snippet); role=why.get("suggested_card_role") or card_role({"claim_type":ctype})
+        candidates.append({"source_id":args.source_id,"target_type":"citation_usage_range","char_start":start,"char_end":end,"page_start":candidate_page_for_span(args.source_id,start) or "","page_end":candidate_page_for_span(args.source_id,end-1) or "","heading":"","section_role":"cited_location","suggested_claim_type":ctype,"suggested_card_role":role,"score":round(score+usage_boost,4),"score_json":why,"text":snippet,"status":"candidate"})
+    ids=[]
+    if args.store and candidates:
+        ids=store_source_card_suggestions(candidates)
+        for sid,c in zip(ids,candidates): c["suggestion_id"]=sid
+    if args.json: print_json({"source_id":args.source_id,"count":len(candidates),"stored":len(ids),"candidates":candidates})
+    else:
+        print(f"Promoted cited locations for {args.source_id}: {len(candidates)} candidates" + (f", stored {len(ids)}" if ids else ""))
+        for c in candidates:
+            print(f"- score:{c['score']} {c['suggested_card_role']} {source_range_handle(c['source_id'],c['char_start'],c['char_end'])}")
+            print(f"  {short(c['text'],220)}")
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
@@ -4174,6 +4312,14 @@ def main():
     rp.add_argument("--source-id"); rp.add_argument("--query"); rp.add_argument("--missing-only", action="store_true"); rp.add_argument("--limit", type=int, default=30); rp.add_argument("--json", action="store_true"); rp.set_defaults(func=cmd_reading_priority)
     acl=sub.add_parser("assess-citation-location", help="Heuristic support/correctness assessment for a stored citation-location suggestion")
     acl.add_argument("suggestion_id"); acl.add_argument("--json", action="store_true"); acl.set_defaults(func=cmd_assess_citation_location)
+    bfm=sub.add_parser("backfill-source-matches", help="Match unresolved existing references/citation contexts to a newly ingested local source")
+    bfm.add_argument("source_id"); bfm.add_argument("--min-score", type=float, default=0.75); bfm.add_argument("--force", action="store_true"); bfm.add_argument("--dry-run", action="store_true"); bfm.add_argument("--limit", type=int, default=50); bfm.add_argument("--json", action="store_true"); bfm.set_defaults(func=cmd_backfill_source_matches)
+    slcs=sub.add_parser("suggest-locations-for-cited-source", help="Suggest support locations for every citation context matched to one cited source")
+    slcs.add_argument("source_id"); slcs.add_argument("--limit", type=int, default=500); slcs.add_argument("--per-context", type=int, default=5); slcs.add_argument("--min-score", type=float, default=0.05); slcs.add_argument("--store", action="store_true"); slcs.add_argument("--show", type=int, default=40); slcs.add_argument("--json", action="store_true"); slcs.set_defaults(func=cmd_suggest_locations_for_cited_source)
+    slu=sub.add_parser("source-location-usage", help="Aggregate citation-location suggestions by cited source range")
+    slu.add_argument("source_id"); slu.add_argument("--min-overlap", type=float, default=0.45); slu.add_argument("--limit", type=int, default=50); slu.add_argument("--json", action="store_true"); slu.set_defaults(func=cmd_source_location_usage)
+    pcl=sub.add_parser("promote-cited-locations", help="Turn repeatedly cited support ranges into source-card suggestions")
+    pcl.add_argument("source_id"); pcl.add_argument("--min-strength", type=float, default=1.0); pcl.add_argument("--limit", type=int, default=30); pcl.add_argument("--store", action="store_true"); pcl.add_argument("--json", action="store_true"); pcl.set_defaults(func=cmd_promote_cited_locations)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 
