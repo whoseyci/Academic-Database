@@ -10,8 +10,8 @@
     "dist": "node prepare-build.js && electron-builder --mac"
   },
   "devDependencies": {
-    "electron": "^31.7.7",
-    "electron-builder": "^24.13.3"
+    "electron": "^40.0.0",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "ai.arena.academic-database",
@@ -27,7 +27,14 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dir", "dmg"]
+      "target": [
+        "dir",
+        "dmg"
+      ]
     }
+  },
+  "author": "Arena Agent",
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

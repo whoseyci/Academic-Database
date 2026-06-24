@@ -1460,8 +1460,14 @@ def cmd_chapter_brief(args):
     prof=load_chapter_profile(args.profile)
     chapter_id, sections, used = chapter_sections_with_cards(prof, args.limit, "standard")
     conn=db()
-    status_counts={r["verification_status"]: r["n"] for r in conn.execute(f"SELECT verification_status, COUNT(*) n FROM source_cards WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY verification_status", list(used)).fetchall()} if used else {}
-    source_counts={r["source_id"]: r["n"] for r in conn.execute(f"SELECT source_id, COUNT(*) n FROM source_cards WHERE claim_id IN ({','.join(['?']*len(used)) or "''"}) GROUP BY source_id", list(used)).fetchall()} if used else {}
+    if used:
+        placeholders = ','.join(['?'] * len(used))
+        used_list = list(used)
+        status_counts={r["verification_status"]: r["n"] for r in conn.execute(f"SELECT verification_status, COUNT(*) n FROM source_cards WHERE claim_id IN ({placeholders}) GROUP BY verification_status", used_list).fetchall()}
+        source_counts={r["source_id"]: r["n"] for r in conn.execute(f"SELECT source_id, COUNT(*) n FROM source_cards WHERE claim_id IN ({placeholders}) GROUP BY source_id", used_list).fetchall()}
+    else:
+        status_counts={}
+        source_counts={}
     conn.close()
     warnings=list(prof.get("profile_warnings", []))
     if status_counts.get("verified",0)==0 and used: warnings.append("No verified claims in this chapter brief; use candidate claims for drafting only after review.")
