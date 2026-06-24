@@ -19,13 +19,48 @@ function loadRepoRoot() {
   return path.resolve(__dirname, '..', '..');
 }
 
-const repoRoot = loadRepoRoot();
+function isGitRepo(dir) {
+  return !!dir && fs.existsSync(path.join(dir, '.git'));
+}
+
+async function ensureRepoRoot() {
+  if (isGitRepo(repoRoot)) return repoRoot;
+  const fallback = path.join(app.getPath('userData'), 'Academic-Database');
+  if (isGitRepo(fallback)) {
+    repoRoot = fallback;
+    return repoRoot;
+  }
+  fs.mkdirSync(path.dirname(fallback), { recursive: true });
+  appendEarlyLog(`No git repo found at ${repoRoot}. Cloning into ${fallback}...
+`);
+  const clone = await new Promise((resolve) => {
+    execFile('git', ['clone', 'https://github.com/whoseyci/Academic-Database.git', fallback], (error, stdout, stderr) => resolve({ ok: !error, stdout, stderr, error }));
+  });
+  if (!clone.ok) throw new Error(`Could not clone Academic-Database into ${fallback}: ${clone.stderr || clone.error}`);
+  repoRoot = fallback;
+  return repoRoot;
+}
+
+function appendEarlyLog(line) {
+  try {
+    const fallbackReports = path.join(app.getPath('userData'), 'logs');
+    fs.mkdirSync(fallbackReports, { recursive: true });
+    fs.appendFileSync(path.join(fallbackReports, 'launcher.log'), line);
+  } catch (_) {}
+}
+
+let repoRoot = loadRepoRoot();
 const host = process.env.RH_REVIEW_HOST || '127.0.0.1';
 const port = Number(process.env.RH_REVIEW_PORT || 8765);
 const url = `http://${host}:${port}`;
-const reportsDir = path.join(repoRoot, 'reports');
-const runDir = path.join(repoRoot, '.run');
-const logFile = path.join(reportsDir, 'electron_backend.log');
+let reportsDir = path.join(repoRoot, 'reports');
+let runDir = path.join(repoRoot, '.run');
+let logFile = path.join(reportsDir, 'electron_backend.log');
+function refreshPaths() {
+  reportsDir = path.join(repoRoot, 'reports');
+  runDir = path.join(repoRoot, '.run');
+  logFile = path.join(reportsDir, 'electron_backend.log');
+}
 
 function appendLog(line) {
   fs.mkdirSync(reportsDir, { recursive: true });
@@ -79,6 +114,8 @@ function stopBackend() {
 
 async function startBackend() {
   stopBackend();
+  await ensureRepoRoot();
+  refreshPaths();
   await ensureVenvAndDeps();
   const py = await pythonCmd();
   appendLog(`Starting backend: ${py} rh2.py review-ui --host ${host} --port ${port}\n`);
@@ -128,14 +165,42 @@ function injectUpdateBanner(info) {
   `).catch(() => {});
 }
 
+function injectStatusBanner(title, detail) {
+  if (!win || win.isDestroyed()) return;
+  const t = JSON.stringify(title || 'Status');
+  const d = JSON.stringify(String(detail || ''));
+  win.webContents.executeJavaScript(`
+    (() => {
+      let b = document.getElementById('academic-db-update-banner');
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'academic-db-update-banner';
+        b.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;background:#fecaca;color:#3f1010;border:1px solid #b91c1c;border-radius:12px;padding:12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.35);font-family:system-ui';
+        document.body.appendChild(b);
+      }
+      b.innerHTML = '<b>'+${t}+'</b><div style="font-size:12px;opacity:.85;white-space:pre-wrap">'+${d}+'</div>';
+    })();
+  `).catch(() => {});
+}
+
 async function gitStatusClean() {
   const st = await run('git', ['status', '--porcelain']);
   return st.ok && !st.stdout.trim();
 }
 
 async function checkForUpdates({ prompt = false } = {}) {
+  try { await ensureRepoRoot(); refreshPaths(); } catch (e) {
+    if (prompt) await dialog.showMessageBox(win, { type: 'error', message: 'No Git repo available', detail: String(e) });
+    else injectStatusBanner('Update check failed', String(e));
+    return { available: false, error: String(e) };
+  }
   const fetch = await run('git', ['fetch', 'origin', 'main']);
-  if (!fetch.ok) return { available: false, error: fetch.stderr || fetch.stdout };
+  if (!fetch.ok) {
+    const err = fetch.stderr || fetch.stdout || 'git fetch failed';
+    if (prompt) await dialog.showMessageBox(win, { type: 'error', message: 'Update check failed', detail: err });
+    else injectStatusBanner('Update check failed', err);
+    return { available: false, error: err };
+  }
   const local = await run('git', ['rev-parse', 'HEAD']);
   const remote = await run('git', ['rev-parse', 'origin/main']);
   if (!local.ok || !remote.ok) return { available: false };
@@ -189,6 +254,7 @@ function createMenu() {
       submenu: [
         { label: 'Check for Updates…', click: () => checkForUpdates({ prompt: true }) },
         { label: 'Restart Backend', click: async () => { await startBackend(); await waitForServer(); win.loadURL(url); } },
+        { label: 'Show Repo Path', click: () => dialog.showMessageBox(win, { message: 'Current repo path', detail: repoRoot }) },
         { label: 'Open Repo Folder', click: () => shell.openPath(repoRoot) },
         { label: 'Open Logs', click: () => shell.openPath(logFile) },
         { type: 'separator' },
