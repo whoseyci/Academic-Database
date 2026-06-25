@@ -191,9 +191,13 @@ function injectStatusBanner(title, detail) {
   `).catch(() => {});
 }
 
-async function gitStatusClean() {
+async function gitStatus() {
   const st = await run('git', ['status', '--porcelain']);
-  return st.ok && !st.stdout.trim();
+  return { ok: st.ok, text: st.stdout || '', clean: st.ok && !st.stdout.trim() };
+}
+
+async function gitStatusClean() {
+  return (await gitStatus()).clean;
 }
 
 async function checkForUpdates({ prompt = false } = {}) {
@@ -221,12 +225,14 @@ async function checkForUpdates({ prompt = false } = {}) {
     if (prompt) {
       const result = await dialog.showMessageBox(win, {
         type: 'info',
-        buttons: clean ? ['Restart to install', 'Later'] : ['Working tree dirty — later'],
+        buttons: clean ? ['Restart to install', 'Later'] : ['Stash changes & restart', 'Open repo folder', 'Later'],
         defaultId: 0,
         message: 'Academic Database update available',
-        detail: clean ? `Current ${updateInfo.local}, remote ${updateInfo.remote}. Restart to install?` : 'Your working tree has local changes, so auto-update is paused.'
+        detail: clean ? `Current ${updateInfo.local}, remote ${updateInfo.remote}. Restart to install?` : 'Your working tree has local changes. You can stash them automatically, or open the repo folder to inspect.'
       });
       if (clean && result.response === 0) await installUpdate();
+      if (!clean && result.response === 0) await installUpdate({ stashDirty: true });
+      if (!clean && result.response === 1) shell.openPath(repoRoot);
     } else {
       injectUpdateBanner(updateInfo);
     }
@@ -234,11 +240,30 @@ async function checkForUpdates({ prompt = false } = {}) {
   return updateInfo;
 }
 
-async function installUpdate() {
-  const clean = await gitStatusClean();
-  if (!clean) {
-    await dialog.showMessageBox(win, { type: 'warning', message: 'Cannot update automatically', detail: 'Working tree has local changes. Commit/stash them first.' });
-    return { ok: false };
+async function installUpdate(options = {}) {
+  const status = await gitStatus();
+  if (!status.clean) {
+    if (!options.stashDirty) {
+      const result = await dialog.showMessageBox(win, {
+        type: 'warning',
+        buttons: ['Stash changes & install update', 'Open repo folder', 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        message: 'Working tree has local changes',
+        detail: `Auto-update cannot overwrite local changes. Current changes:
+
+${status.text.slice(0, 3000)}
+
+Stash changes and restart to install?`
+      });
+      if (result.response === 1) shell.openPath(repoRoot);
+      if (result.response !== 0) return { ok: false };
+    }
+    const stash = await run('git', ['stash', 'push', '-u', '-m', `Academic Database auto-stash before update ${new Date().toISOString()}`]);
+    if (!stash.ok) {
+      await dialog.showMessageBox(win, { type: 'error', message: 'Could not stash local changes', detail: stash.stderr || stash.stdout || 'git stash failed' });
+      return { ok: false };
+    }
   }
   stopBackend();
   const pull = await run('git', ['pull', '--ff-only', 'origin', 'main']);
@@ -261,6 +286,7 @@ function createMenu() {
       label: 'Academic Database',
       submenu: [
         { label: 'Check for Updates…', click: () => checkForUpdates({ prompt: true }) },
+        { label: 'Stash Local Changes…', click: async () => { const st = await gitStatus(); if (st.clean) return dialog.showMessageBox(win, { message: 'Working tree is clean' }); const r = await dialog.showMessageBox(win, { type: 'warning', buttons: ['Stash', 'Cancel'], message: 'Stash local changes?', detail: st.text.slice(0,3000) }); if (r.response === 0) await run('git', ['stash', 'push', '-u', '-m', `Manual stash from Academic Database ${new Date().toISOString()}`]); } },
         { label: 'Restart Backend', click: async () => { await startBackend(); await waitForServer(); win.loadURL(url); } },
         { label: 'Show Repo Path', click: () => dialog.showMessageBox(win, { message: 'Current repo path', detail: repoRoot }) },
         { label: 'Open Repo Folder', click: () => shell.openPath(repoRoot) },
