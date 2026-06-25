@@ -154,6 +154,28 @@ function waitForServer(timeoutMs = 30000) {
   });
 }
 
+async function safeLoadURL(targetUrl) {
+  if (!win || win.isDestroyed()) {
+    appendLog(`Skip loadURL; window destroyed: ${targetUrl}
+`);
+    return false;
+  }
+  try {
+    await win.loadURL(targetUrl);
+    return true;
+  } catch (e) {
+    appendLog(`loadURL failed: ${String(e)}
+`);
+    return false;
+  }
+}
+
+function errorPage(title, detail) {
+  return 'data:text/html;charset=utf-8,' + encodeURIComponent(
+    `<body style="font-family:system-ui;background:#111;color:#eee;padding:24px"><h2>${title}</h2><pre style="white-space:pre-wrap;background:#1b1b1b;border:1px solid #333;border-radius:12px;padding:14px">${detail}</pre><p>Use the app menu: Academic Database → Open Logs / Open Repo Folder.</p></body>`
+  );
+}
+
 function injectUpdateBanner(info) {
   if (!win || win.isDestroyed()) return;
   const payload = JSON.stringify(info || updateInfo || {});
@@ -313,26 +335,36 @@ async function createWindow() {
       nodeIntegration: false
     }
   });
-  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent('<h2 style="font-family:system-ui">Starting Academic Database…</h2><p style="font-family:system-ui">Launching local review server.</p>'));
+  win.on('closed', () => { win = null; });
+  await safeLoadURL('data:text/html;charset=utf-8,' + encodeURIComponent('<h2 style="font-family:system-ui">Starting Academic Database…</h2><p style="font-family:system-ui">Launching local review server.</p>'));
   createMenu();
   await startBackend();
   try {
     await waitForServer();
-    await win.loadURL(url);
+    await safeLoadURL(url);
     setTimeout(() => checkForUpdates({ prompt: false }), 2500);
     updateTimer = setInterval(() => checkForUpdates({ prompt: false }), 5 * 60 * 1000);
   } catch (e) {
     const log = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').slice(-4000) : '';
-    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(`<h2>Backend failed to start</h2><pre>${String(e)}\n\n${log}</pre>`));
+    await safeLoadURL(errorPage('Backend failed to start', `${String(e)}\n\n${log}`));
   }
 }
 
 ipcMain.handle('install-update', () => installUpdate());
 ipcMain.handle('check-for-updates', () => checkForUpdates({ prompt: true }));
-ipcMain.handle('restart-backend', async () => { await startBackend(); await waitForServer(); await win.loadURL(url); return { ok: true }; });
+ipcMain.handle('restart-backend', async () => { await startBackend(); await waitForServer(); await safeLoadURL(url); return { ok: true }; });
 ipcMain.handle('open-logs', () => shell.openPath(logFile));
 ipcMain.handle('open-repo', () => shell.openPath(repoRoot));
 
-app.whenReady().then(createWindow);
+process.on('unhandledRejection', (reason) => { appendLog(`Unhandled rejection: ${String(reason)}\n`); });
+process.on('uncaughtException', (err) => { appendLog(`Uncaught exception: ${err && err.stack ? err.stack : String(err)}\n`); });
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) { app.quit(); }
+else {
+  app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+  app.whenReady().then(createWindow);
+  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+}
 app.on('before-quit', () => { if (updateTimer) clearInterval(updateTimer); stopBackend(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
