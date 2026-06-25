@@ -86,21 +86,29 @@ async function ensureVenvAndDeps() {
   fs.mkdirSync(reportsDir, { recursive: true });
   fs.mkdirSync(runDir, { recursive: true });
   const venvPython = path.join(repoRoot, '.venv', 'bin', 'python');
+  const setupStamp = path.join(repoRoot, '.venv', '.electron_core_setup_stamp');
+  let createdVenv = false;
   if (!fs.existsSync(venvPython)) {
     appendLog('Creating .venv...\n');
     await run('python3', ['-m', 'venv', '.venv']);
+    createdVenv = true;
   }
   const py = await pythonCmd();
-  await run(py, ['-m', 'pip', 'install', '--upgrade', 'pip', 'wheel', 'setuptools']);
+  // The review backend itself is stdlib-only. Avoid slow pip work on every launch.
+  if (process.env.ACADEMIC_DB_SKIP_PIP !== '1' && (createdVenv || !fs.existsSync(setupStamp))) {
+    appendLog('Preparing Python environment...\n');
+    await run(py, ['-m', 'pip', 'install', '--upgrade', 'pip', 'wheel', 'setuptools']);
+    fs.writeFileSync(setupStamp, new Date().toISOString());
+  }
   const parserReq = path.join(repoRoot, 'requirements-parser.txt');
-  const stamp = path.join(repoRoot, '.venv', '.electron_setup_stamp');
-  if (process.env.PDF2MD_INSTALL_PARSER !== '0' && fs.existsSync(parserReq)) {
+  const parserStamp = path.join(repoRoot, '.venv', '.electron_parser_setup_stamp');
+  if (process.env.PDF2MD_INSTALL_PARSER === '1' && fs.existsSync(parserReq)) {
     const reqMtime = fs.statSync(parserReq).mtimeMs;
-    const stampMtime = fs.existsSync(stamp) ? fs.statSync(stamp).mtimeMs : 0;
+    const stampMtime = fs.existsSync(parserStamp) ? fs.statSync(parserStamp).mtimeMs : 0;
     if (reqMtime > stampMtime) {
-      appendLog('Installing parser dependencies...\n');
+      appendLog('Installing parser dependencies (set PDF2MD_INSTALL_PARSER=0 to skip)...\n');
       await run(py, ['-m', 'pip', 'install', '-r', 'requirements-parser.txt']);
-      fs.writeFileSync(stamp, new Date().toISOString());
+      fs.writeFileSync(parserStamp, new Date().toISOString());
     }
   }
 }

@@ -482,3 +482,25 @@ Launching the app will:
 4. open the review cockpit. If Chrome or Edge is installed it opens as an app-style window; otherwise it falls back to your default browser.
 
 The app is a lightweight wrapper around this local repo, so your SQLite DB and parser artifacts stay on your Mac.
+
+### Faster Electron startup
+
+The review UI backend itself is stdlib-only and should start quickly after the first setup. Slow first launches usually come from creating `.venv` and installing parser dependencies. For fastest startup, set this in `.env`:
+
+```text
+PDF2MD_INSTALL_PARSER=0
+PDF2MD_INSTALL_VISION=0
+```
+
+Install parser dependencies manually only when you need PDF conversion:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements-parser.txt
+```
+
+If you already have a working venv and want the Electron launcher to skip pip setup entirely:
+
+```text
+ACADEMIC_DB_SKIP_PIP=1
+```
