@@ -282,3 +282,22 @@ python rh2.py parser-tournament paper.pdf --out reports/parser_tournament
 ```
 
 Use this to decide whether a paper should be converted with the default pipeline, `pdftotext`, `auto`, or reading-order recovery.
+
+## MCP / graph cache / context planning
+
+For agent integrations, the harness exposes a lightweight JSONL tool loop:
+
+```bash
+python rh2.py tool-schema
+printf '{"tool":"retrieve_claims","args":{"query":"trust policy","limit":3}}\n' | python rh2.py mcp-server
+```
+
+Graph/cache and planning commands:
+
+```bash
+python rh2.py rebuild-graph-cache
+python rh2.py graph-query --kind has_card --limit 20
+python rh2.py context-plan "trust and policy stability" --budget 3000
+python rh2.py benchmark --rebuild-graph
+python rh2.py snapshot --name before-review-session
+```

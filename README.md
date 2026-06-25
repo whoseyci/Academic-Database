@@ -504,3 +504,23 @@ If you already have a working venv and want the Electron launcher to skip pip se
 ```text
 ACADEMIC_DB_SKIP_PIP=1
 ```
+
+## MCP / JSONL tool server and graph utilities
+
+The harness includes a lightweight JSONL tool loop inspired by MCP-style code memory systems:
+
+```bash
+python rh2.py tool-schema
+printf '{"tool":"retrieve_claims","args":{"query":"trust policy","limit":3}}
+' | python rh2.py mcp-server
+```
+
+Graph/cache and planning helpers:
+
+```bash
+python rh2.py rebuild-graph-cache
+python rh2.py graph-query --kind has_card --limit 20
+python rh2.py context-plan "trust and policy stability" --budget 3000
+python rh2.py benchmark --rebuild-graph
+python rh2.py snapshot --name before-review-session
+```

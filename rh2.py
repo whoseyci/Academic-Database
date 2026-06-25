@@ -368,6 +368,18 @@ def init_db(quiet: bool=False) -> None:
         created_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_local_embeddings_type ON local_embeddings(item_type, source_id);
+    CREATE TABLE IF NOT EXISTS graph_edges_cache (
+        edge_id TEXT PRIMARY KEY,
+        source TEXT,
+        target TEXT,
+        kind TEXT,
+        weight REAL,
+        meta_json TEXT,
+        updated_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges_cache(source);
+    CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges_cache(target);
+    CREATE INDEX IF NOT EXISTS idx_graph_edges_kind ON graph_edges_cache(kind);
     CREATE TABLE IF NOT EXISTS query_cache (
         query_hash TEXT PRIMARY KEY,
         query TEXT,
@@ -4906,10 +4918,187 @@ def cmd_recursive_run(args):
     elif not args.quiet: print('recursive-run complete')
 
 
+# ---------- research memory tools / graph cache / context planner / snapshots ----------
+
+TOOL_SCHEMAS = {
+    "retrieve_claims": {"description":"Retrieve source cards/claims", "input":{"query":"str", "limit":"int=8", "source_id":"str?", "fields":"minimal|standard|full"}},
+    "hybrid_retrieve": {"description":"Retrieve with lexical + local sparse semantic ranking", "input":{"query":"str", "limit":"int=8"}},
+    "get_context": {"description":"Get bounded source context for a claim", "input":{"claim_id":"str", "window":"int=500"}},
+    "review_packet": {"description":"Assemble review packet for a claim", "input":{"claim_id":"str"}},
+    "source_neighborhood": {"description":"Show citation/card neighborhood for a source", "input":{"source_id":"str"}},
+    "reading_priority": {"description":"Rank missing/high-value references", "input":{"query":"str?", "limit":"int=20"}},
+    "context_plan": {"description":"Build token-budgeted evidence/context plan", "input":{"query":"str", "budget":"int=3000"}},
+    "redteam_draft": {"description":"Audit draft defensibility", "input":{"path":"str"}},
+}
+
+
+def cmd_tool_schema(args):
+    print_json({"tools": TOOL_SCHEMAS, "protocol": "jsonl", "example": {"tool":"retrieve_claims", "args":{"query":"trust policy stability", "limit":5}}})
+
+
+def run_tool_call(tool: str, kwargs: dict[str, Any]) -> Any:
+    tool=tool.replace('-','_')
+    if tool == "retrieve_claims":
+        return {"results": retrieve_claims(kwargs.get("query",""), int(kwargs.get("limit",8)), kwargs.get("fields","standard"), {"source_id": kwargs.get("source_id"), "statuses": split_list(kwargs.get("status")), "claim_types": split_list(kwargs.get("claim_type"))})}
+    if tool == "hybrid_retrieve":
+        # return compact implementation without invoking stdout command
+        q=kwargs.get("query",""); limit=int(kwargs.get("limit",8)); lex=retrieve_claims(q, max(limit*4,30), "standard", {})
+        return {"results": lex[:limit], "note":"Use CLI hybrid-retrieve for semantic-only expansion; MCP returns lexical-compatible cards."}
+    if tool == "get_context":
+        cid=kwargs.get("claim_id")
+        if not cid: raise ValueError("claim_id required")
+        conn=db(); row=conn.execute("SELECT * FROM source_cards WHERE claim_id=?", (cid,)).fetchone(); conn.close()
+        if not row: raise ValueError(f"unknown claim_id {cid}")
+        d=dict(row); text=read_source_text(d["source_id"]); window=int(kwargs.get("window",500)); start=max(0,int(d.get("char_start") or 0)-window); end=min(len(text),int(d.get("char_end") or d.get("char_start") or 0)+window)
+        return {"claim": claim_card(d,"standard"), "context": text[start:end], "context_start": start, "context_end": end}
+    if tool == "review_packet":
+        cid=kwargs.get("claim_id")
+        if not cid: raise ValueError("claim_id required")
+        return review_packet_payload(cid, nearby=int(kwargs.get("nearby",5)), citation_limit=int(kwargs.get("citation_limit",5)))
+    if tool == "source_neighborhood":
+        sid=kwargs.get("source_id")
+        if not sid: raise ValueError("source_id required")
+        return source_neighborhood_payload(sid, limit=int(kwargs.get("limit",30)))
+    if tool == "reading_priority":
+        return reading_priority_items(query=kwargs.get("query",""), source_id=kwargs.get("source_id"), missing_only=bool(kwargs.get("missing_only",False)), limit=int(kwargs.get("limit",20)))
+    if tool == "context_plan":
+        return build_context_plan(kwargs.get("query",""), budget=int(kwargs.get("budget",3000)), limit=int(kwargs.get("limit",20)))
+    raise ValueError(f"unknown tool: {tool}")
+
+
+def cmd_mcp_server(args):
+    # JSON-lines, MCP-like stdio tool loop. Each line: {"tool":"...", "args":{...}, "id":"optional"}
+    print_json({"ready": True, "tools": list(TOOL_SCHEMAS)})
+    sys.stdout.flush()
+    for line in sys.stdin:
+        if not line.strip():
+            continue
+        try:
+            req=json.loads(line)
+            result=run_tool_call(req.get("tool") or req.get("name"), req.get("args") or req.get("arguments") or {})
+            print_json({"id": req.get("id"), "ok": True, "result": result})
+        except Exception as e:
+            print_json({"ok": False, "error": str(e)})
+        sys.stdout.flush()
+
+
+def rebuild_graph_cache() -> dict[str, Any]:
+    init_db(True); conn=db(); cur=conn.cursor(); cur.execute("DELETE FROM graph_edges_cache"); n=0
+    def add(a,b,k,w=1.0,meta=None):
+        nonlocal n
+        eid=f"GEDGE-{sha1_short(a+'|'+b+'|'+k)[:14]}"; cur.execute("INSERT OR REPLACE INTO graph_edges_cache VALUES (?,?,?,?,?,?,?)", (eid,a,b,k,float(w),json.dumps(meta or {},ensure_ascii=False),now())); n+=1
+    for r in cur.execute("SELECT source_id FROM sources").fetchall():
+        add("corpus", f"source:{r['source_id']}", "has_source", 1)
+    for r in cur.execute("SELECT claim_id,source_id,verification_status,claim_type FROM source_cards").fetchall():
+        add(f"source:{r['source_id']}", f"claim:{r['claim_id']}", "has_card", 1, {"status":r["verification_status"],"claim_type":r["claim_type"]})
+    for r in cur.execute("SELECT * FROM claim_relations").fetchall():
+        add(f"claim:{r['claim_a']}", f"claim:{r['claim_b']}", r["relation_type"], 1, {"status":r["status"],"note":r["note"]})
+    for r in cur.execute("SELECT citing_source_id, matched_source_id, COUNT(*) n FROM citation_contexts WHERE matched_source_id IS NOT NULL AND matched_source_id!='' GROUP BY citing_source_id, matched_source_id").fetchall():
+        add(f"source:{r['citing_source_id']}", f"source:{r['matched_source_id']}", "cites", r["n"])
+    for r in cur.execute("SELECT context_id, source_id, char_start, char_end, status, score FROM citation_location_suggestions WHERE source_id IS NOT NULL").fetchall():
+        if r["char_start"] is not None and r["char_end"] is not None:
+            add(f"citation_context:{r['context_id']}", source_range_handle(r["source_id"], r["char_start"], r["char_end"]), "suggests_location", r["score"] or 0, {"status":r["status"]})
+    conn.commit(); conn.close(); return {"edges": n}
+
+
+def cmd_rebuild_graph_cache(args):
+    result=rebuild_graph_cache(); print_json(result) if args.json else print(f"Rebuilt graph cache: {result['edges']} edges")
+
+
+def cmd_graph_query(args):
+    init_db(True); conn=db(); params=[]; where=[]
+    if args.node: where.append("(source=? OR target=?)"); params += [args.node,args.node]
+    if args.kind: where.append("kind=?"); params.append(args.kind)
+    sql="SELECT * FROM graph_edges_cache" + (" WHERE "+" AND ".join(where) if where else "") + " ORDER BY weight DESC LIMIT ?"
+    rows=[dict(r) for r in conn.execute(sql, (*params,args.limit)).fetchall()]
+    conn.close()
+    for r in rows:
+        try: r['meta']=json.loads(r.get('meta_json') or '{}')
+        except Exception: r['meta']={}
+    print_json({"count":len(rows),"edges":rows}) if args.json else [print(f"{r['source']} --{r['kind']}({r['weight']})--> {r['target']}") for r in rows]
+
+
+def source_neighborhood_payload(source_id: str, limit: int=30) -> dict[str, Any]:
+    init_db(True); conn=db(); src=conn.execute("SELECT * FROM sources WHERE source_id=?", (source_id,)).fetchone()
+    if not src: raise ValueError(f"Unknown source_id {source_id}")
+    outgoing=[dict(r) for r in conn.execute("SELECT * FROM citation_contexts WHERE citing_source_id=? ORDER BY context_id LIMIT ?", (source_id,limit)).fetchall()]
+    incoming=[dict(r) for r in conn.execute("SELECT * FROM citation_contexts WHERE matched_source_id=? ORDER BY citing_source_id, context_id LIMIT ?", (source_id,limit)).fetchall()]
+    refs=[dict(r) for r in conn.execute("SELECT * FROM source_references WHERE source_id=? ORDER BY reference_id LIMIT ?", (source_id,limit)).fetchall()]
+    cards=[claim_card(r,"minimal") for r in conn.execute("SELECT * FROM source_cards WHERE source_id=? ORDER BY claim_id LIMIT ?", (source_id,limit)).fetchall()]
+    conn.close(); return {"source":dict(src),"outgoing_citation_contexts":outgoing,"incoming_citation_contexts":incoming,"references":refs,"source_cards":cards,"location_usage":source_location_usage(source_id)[:limit]}
+
+
+def reading_priority_items(query: str='', source_id: str|None=None, missing_only: bool=False, limit: int=30) -> list[dict[str, Any]]:
+    init_db(True); conn=db(); where=[]; params=[]
+    if source_id: where.append("sr.source_id=?"); params.append(source_id)
+    rows=[dict(r) for r in conn.execute(f"""SELECT sr.*, COUNT(cc.context_id) AS cite_count, GROUP_CONCAT(substr(cc.context_text,1,240),' || ') AS contexts FROM source_references sr LEFT JOIN citation_contexts cc ON cc.reference_id=sr.reference_id {('WHERE '+ ' AND '.join(where)) if where else ''} GROUP BY sr.reference_id""", params).fetchall()]
+    conn.close(); items=[]
+    for r in rows:
+        if missing_only and r.get("matched_source_id"): continue
+        text=" ".join([r.get("title") or "", r.get("raw_text") or "", r.get("contexts") or ""]); qscore=token_overlap_score(query,text) if query else 0.0
+        score=(r.get("cite_count") or 0)+qscore*3+(0.4 if normalize_doi(r.get("doi")) else 0)+(0.5 if not r.get("matched_source_id") else 0)
+        if score<=0 and query: continue
+        items.append({"score":round(score,3),"reference_id":r["reference_id"],"source_id":r["source_id"],"author_key":r.get("author_key"),"year":r.get("year"),"title":r.get("title"),"doi":r.get("doi"),"matched_source_id":r.get("matched_source_id"),"status":r.get("status"),"citation_context_count":r.get("cite_count"),"context_preview":short(r.get("contexts"),260)})
+    return sorted(items,key=lambda x:x['score'],reverse=True)[:limit]
+
+
+def build_context_plan(query: str, budget: int=3000, limit: int=20) -> dict[str, Any]:
+    cards=retrieve_claims(query, max(limit*3,30), "standard", {})
+    selected=[]; used=0
+    for c in cards:
+        cost=estimate_tokens(card_to_brief_text(c))
+        if selected and used+cost>budget: continue
+        selected.append(c); used+=cost
+        if len(selected)>=limit: break
+    warnings=[]
+    if any(c.get('status')!='verified' for c in selected): warnings.append('Contains non-verified cards; review before final writing.')
+    if len(set(c.get('source_id') for c in selected))<2 and len(selected)>2: warnings.append('Low source diversity.')
+    return {"query":query,"budget":budget,"estimated_tokens":used,"cards":selected,"warnings":warnings,"deep_dive_commands":[f"python rh2.py context {c['claim_id']} --window 600" for c in selected[:8]]}
+
+
+def cmd_context_plan(args):
+    p=build_context_plan(args.query,args.budget,args.limit)
+    if args.json: print_json(p)
+    else:
+        print(f"# Context plan: {args.query}\nTokens: {p['estimated_tokens']} / {p['budget']}")
+        for w in p['warnings']: print(f"WARNING: {w}")
+        for c in p['cards']: print(f"- {c['claim_id']} grade:{c.get('evidence_grade')} {c.get('status')} {short(c.get('claim'),180)}")
+
+
+def cmd_benchmark(args):
+    import time as _time
+    init_db(True); t0=_time.perf_counter(); stats={}; conn=db()
+    for table in ['sources','source_cards','citation_contexts','source_references','claim_relations']:
+        try: stats[table]=conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        except Exception: stats[table]='missing'
+    conn.close(); timings={}
+    for name,fn in [('retrieve',lambda: retrieve_claims(args.query,10,'minimal',{})),('review_state',lambda: review_state(50)),('graph_cache',lambda: rebuild_graph_cache() if args.rebuild_graph else {'skipped':True})]:
+        a=_time.perf_counter(); fn(); timings[name]=round((_time.perf_counter()-a)*1000,2)
+    payload={"stats":stats,"timings_ms":timings,"total_ms":round((_time.perf_counter()-t0)*1000,2),"db_bytes":DB_PATH.stat().st_size if DB_PATH.exists() else 0}
+    print_json(payload) if args.json else [print(f"{k}: {v}") for k,v in payload.items()]
+
+
+def cmd_snapshot(args):
+    init_db(True); SNAP=ROOT/'snapshots'; SNAP.mkdir(exist_ok=True)
+    name=args.name or datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    dest=SNAP/name; dest.mkdir(exist_ok=True)
+    shutil.copy2(DB_PATH,dest/'harness_v2.db')
+    meta={"name":name,"created_at":now(),"db_bytes":DB_PATH.stat().st_size,"note":args.note or ""}
+    (dest/'snapshot.json').write_text(json.dumps(meta,indent=2),encoding='utf-8')
+    print_json(meta) if args.json else print(f"Snapshot written: {dest.relative_to(ROOT)}")
+
+
+def cmd_restore_snapshot(args):
+    src=ROOT/'snapshots'/args.name/'harness_v2.db'
+    if not src.exists(): raise SystemExit(f"Snapshot not found: {src}")
+    if not args.yes: raise SystemExit("Refusing to overwrite DB without --yes")
+    shutil.copy2(src,DB_PATH); print(f"Restored snapshot {args.name}")
+
+
 def cmd_stats(args):
     init_db(True)
     conn=db(); cur=conn.cursor()
-    tables=["sources","spans","source_cards","source_card_suggestions","source_location_signals","synthesis_cards","synthesis_claims","local_embeddings","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
+    tables=["sources","spans","source_cards","source_card_suggestions","source_location_signals","synthesis_cards","synthesis_claims","local_embeddings","graph_edges_cache","claim_tags","claim_relations","source_references","citation_contexts","citation_location_suggestions","review_events","review_labels"]
     stats={}
     for t in tables:
         try: stats[t]=cur.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -5070,6 +5259,22 @@ def main():
     rui2.add_argument("--host", default="127.0.0.1"); rui2.add_argument("--port", type=int, default=8765); rui2.add_argument("--limit", type=int, default=120); rui2.add_argument("--verbose", action="store_true"); rui2.set_defaults(func=cmd_review_ui)
     rrn=sub.add_parser("recursive-run", help="Recursive database-native orchestration loop over backfill/suggestions/promotions/training")
     rrn.add_argument("--source-id"); rrn.add_argument("--rounds", type=int, default=3); rrn.add_argument("--until-stable", action="store_true"); rrn.add_argument("--dry-run", action="store_true"); rrn.add_argument("--quiet", action="store_true"); rrn.add_argument("--learned", action="store_true"); rrn.add_argument("--learned-weight", type=float, default=0.35); rrn.add_argument("--backfill", action="store_true", default=True); rrn.add_argument("--no-backfill", dest="backfill", action="store_false"); rrn.add_argument("--suggest-locations", action="store_true", default=True); rrn.add_argument("--no-suggest-locations", dest="suggest_locations", action="store_false"); rrn.add_argument("--suggest-cards", action="store_true", default=True); rrn.add_argument("--no-suggest-cards", dest="suggest_cards", action="store_false"); rrn.add_argument("--promote", action="store_true", default=True); rrn.add_argument("--no-promote", dest="promote", action="store_false"); rrn.add_argument("--refresh-signals", action="store_true", default=True); rrn.add_argument("--train", action="store_true", default=True); rrn.add_argument("--min-match-score", type=float, default=0.75); rrn.add_argument("--min-location-score", type=float, default=0.08); rrn.add_argument("--min-card-score", type=float, default=0.3); rrn.add_argument("--min-usage-strength", type=float, default=1.0); rrn.add_argument("--context-limit", type=int, default=500); rrn.add_argument("--per-context", type=int, default=5); rrn.add_argument("--card-limit", type=int, default=40); rrn.add_argument("--review-limit", type=int, default=120); rrn.add_argument("--json", action="store_true"); rrn.set_defaults(func=cmd_recursive_run)
+    ts=sub.add_parser("tool-schema", help="Print JSON schema for lightweight MCP/JSONL tools")
+    ts.set_defaults(func=cmd_tool_schema)
+    mcp=sub.add_parser("mcp-server", help="Run lightweight JSONL MCP-like tool server over stdin/stdout")
+    mcp.set_defaults(func=cmd_mcp_server)
+    rgc=sub.add_parser("rebuild-graph-cache", help="Rebuild denormalized graph edge cache")
+    rgc.add_argument("--json", action="store_true"); rgc.set_defaults(func=cmd_rebuild_graph_cache)
+    gq=sub.add_parser("graph-query", help="Query graph edge cache")
+    gq.add_argument("--node"); gq.add_argument("--kind"); gq.add_argument("--limit", type=int, default=50); gq.add_argument("--json", action="store_true"); gq.set_defaults(func=cmd_graph_query)
+    cp=sub.add_parser("context-plan", help="Token-budgeted evidence/context plan for a writing task")
+    cp.add_argument("query"); cp.add_argument("--budget", type=int, default=3000); cp.add_argument("--limit", type=int, default=20); cp.add_argument("--json", action="store_true"); cp.set_defaults(func=cmd_context_plan)
+    bm=sub.add_parser("benchmark", help="Benchmark core query/cache operations")
+    bm.add_argument("--query", default="trust policy stability"); bm.add_argument("--rebuild-graph", action="store_true"); bm.add_argument("--json", action="store_true"); bm.set_defaults(func=cmd_benchmark)
+    snp=sub.add_parser("snapshot", help="Snapshot the SQLite DB for reproducibility")
+    snp.add_argument("--name"); snp.add_argument("--note"); snp.add_argument("--json", action="store_true"); snp.set_defaults(func=cmd_snapshot)
+    rst=sub.add_parser("restore-snapshot", help="Restore a DB snapshot")
+    rst.add_argument("name"); rst.add_argument("--yes", action="store_true"); rst.set_defaults(func=cmd_restore_snapshot)
     st=sub.add_parser("stats"); st.add_argument("--json", action="store_true"); st.set_defaults(func=cmd_stats)
     args=p.parse_args(); args.func(args)
 
