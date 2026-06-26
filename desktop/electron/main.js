@@ -120,10 +120,24 @@ function stopBackend() {
   }
 }
 
+async function killProcessesOnPort() {
+  // Prevent accidentally connecting to an old/stale review-ui server that is
+  // still bound to the port from a previous launch.
+  if (process.platform !== 'darwin' && process.platform !== 'linux') return;
+  const res = await run('sh', ['-lc', `lsof -ti tcp:${port} 2>/dev/null || true`]);
+  const pids = (res.stdout || '').split(/\s+/).filter(Boolean).filter(pid => String(process.pid) !== pid);
+  for (const pid of pids) {
+    appendLog(`Killing stale process on port ${port}: ${pid}
+`);
+    await run('kill', [pid]);
+  }
+}
+
 async function startBackend() {
   stopBackend();
   await ensureRepoRoot();
   refreshPaths();
+  await killProcessesOnPort();
   await ensureVenvAndDeps();
   const py = await pythonCmd();
   appendLog(`Starting backend: ${py} rh2.py review-ui --host ${host} --port ${port}\n`);

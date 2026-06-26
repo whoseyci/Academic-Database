@@ -10,7 +10,7 @@ V2's design bias:
 """
 from __future__ import annotations
 
-import argparse, collections, csv, gzip, hashlib, json, re, shutil, sqlite3, sys, textwrap, uuid
+import argparse, collections, csv, gzip, hashlib, json, re, shutil, sqlite3, subprocess, sys, textwrap, uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
@@ -4733,6 +4733,13 @@ def assess_citation_support_deep(context_text: str, matched_text: str, score: fl
 
 # ---------- interactive review UI / synthesis red-team / recursive orchestration ----------
 
+def git_commit_short() -> str:
+    try:
+        return subprocess.check_output(['git','rev-parse','--short','HEAD'], cwd=ROOT, text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return ''
+
+
 def review_graph_data(limit: int=240) -> dict[str, Any]:
     """Small graph payload for the review cockpit/static review export."""
     init_db(True)
@@ -4789,6 +4796,8 @@ def review_state(limit: int=120) -> dict[str, Any]:
     for t in ["sources","source_cards","source_card_suggestions","citation_contexts","citation_location_suggestions","synthesis_cards","review_events","source_location_signals"]:
         try: stats[t]=conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
         except Exception: stats[t]=0
+    stats["git_commit"] = git_commit_short()
+    stats["ui_version"] = "review-graph-3d-v2"
     conn.close()
     return {"generated_at":now(),"stats":stats,"review_queue":sorted(queue,key=lambda x:x.get("centrality_score",0),reverse=True)[:limit],"source_card_suggestions":scs,"citation_location_suggestions":cls,"synthesis_cards":synth,"graph":review_graph_data(limit)}
 
